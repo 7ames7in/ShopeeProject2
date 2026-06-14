@@ -149,6 +149,26 @@ function fillField(field: string, value: string, keywords: string[], preferTexta
 }
 
 function findSelectionTrigger(keywords: string[]): HTMLElement | null {
+  // 1. User's specific Edit Row / Element Plus selector logic for Shopee Seller Center
+  const editLabels = Array.from(document.querySelectorAll<HTMLElement>('.edit-label'))
+  const matchingLabel = editLabels.find((el) => {
+    const text = el.textContent ?? ''
+    return keywords.some((keyword) => text.toLowerCase().includes(keyword.toLowerCase()))
+  })
+  
+  if (matchingLabel) {
+    const editRow = matchingLabel.closest('.edit-row')
+    if (editRow) {
+      const clickableElement = editRow.querySelector<HTMLElement>(
+        '.el-select, .el-cascader, .el-input__inner, [role="combobox"], .select-trigger'
+      )
+      if (clickableElement && isVisible(clickableElement)) {
+        return clickableElement
+      }
+    }
+  }
+
+  // 2. Fallback to existing label-parent traversal logic
   const normalizedKeywords = keywords.map(normalizeText)
   const labels = Array.from(document.querySelectorAll<HTMLElement>('label, div, span'))
     .filter((element) => {
@@ -181,7 +201,8 @@ function findVisibleOption(value: string): HTMLElement | null {
 }
 
 async function selectBrand(brand: string): Promise<FillFieldResult> {
-  const value = brand.trim() || 'No Brand'
+  // Brand가 없거나 'No Brand'인 경우 'No brand'로 통일하여 지정
+  const value = brand.trim() && brand.trim().toLowerCase() !== 'no brand' ? brand.trim() : 'No brand'
   const trigger = findSelectionTrigger(fieldKeywords.brand)
   if (!trigger) return { field: 'Brand', success: false, message: 'Brand 선택 영역을 찾지 못함' }
 
@@ -189,10 +210,10 @@ async function selectBrand(brand: string): Promise<FillFieldResult> {
     trigger.scrollIntoView({ behavior: 'smooth', block: 'center' })
     trigger.click()
     
-    // 드롭다운이 열릴 때까지 대기
+    // 드롭다운 패널 열릴 때까지 500ms 대기
     await new Promise((resolve) => window.setTimeout(resolve, 500))
     
-    // 드롭다운 내부에 있는 검색창(Input) 찾기
+    // 드롭다운 내부에 있는 검색 인풋 찾기
     const searchInput = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
       .find((el) => isVisible(el) && (
         el.placeholder?.toLowerCase().includes('character') || 
@@ -202,7 +223,7 @@ async function selectBrand(brand: string): Promise<FillFieldResult> {
       ))
       
     if (searchInput) {
-      // 검색창에 브랜드명 입력 및 이벤트 디스패치
+      // 검색창 포커싱 및 텍스트 타이핑
       searchInput.focus()
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
       if (setter) setter.call(searchInput, value)
@@ -211,7 +232,7 @@ async function selectBrand(brand: string): Promise<FillFieldResult> {
       searchInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }))
       searchInput.dispatchEvent(new Event('change', { bubbles: true }))
       
-      // 검색 결과 필터링 완료를 위한 대기
+      // 검색 필터링 렌더링을 위해 800ms 대기
       await new Promise((resolve) => window.setTimeout(resolve, 800))
     }
     
@@ -242,20 +263,12 @@ function promptCategorySelection(draft: ProductDraft): FillFieldResult {
   trigger.scrollIntoView({ behavior: 'smooth', block: 'center' })
   trigger.dataset.shopeeAiDraftCategory = draft.categoryPath
   trigger.click()
-  
-  // 3초 후에 카테고리 팝업창을 자동으로 닫는 타이머 설정
-  window.setTimeout(() => {
-    if (dismissCategoryModal()) {
-      console.log('Category modal dismissed automatically after timeout.')
-    }
-  }, 3000)
-
   return {
     field: 'Category',
     success: false,
     message: draft.categoryPath && draft.categoryPath !== 'Uncategorized'
-      ? `직접 선택 필요 (3초 후 팝업 자동 닫힘): ${draft.categoryPath}`
-      : '카테고리를 직접 선택해 주세요 (3초 후 팝업 자동 닫힘)',
+      ? `직접 선택 필요: ${draft.categoryPath}`
+      : '카테고리를 직접 선택해 주세요',
   }
 }
 
@@ -269,7 +282,7 @@ function findRecommendedCategories(): { text: string; element: HTMLElement }[] {
   if (headers.length === 0) return []
 
   const options: { text: string; element: HTMLElement }[] = []
-  
+
   for (const header of headers) {
     let container: HTMLElement | null = header.parentElement
     for (let i = 0; i < 3 && container; i++) {
@@ -302,73 +315,27 @@ function findRecommendedCategories(): { text: string; element: HTMLElement }[] {
   })
 }
 
-function dismissCategoryModal(): boolean {
-  // 'Edit Category' 또는 'Select Category'를 포함하는 헤더/타이틀이 있는지 확인
-  const headers = Array.from(document.querySelectorAll<HTMLElement>('div, h2, h3, span, p'))
-    .filter((el) => {
-      const text = el.textContent?.trim().toLowerCase() ?? ''
-      return (text.includes('edit category') || text.includes('select category') || text.includes('category edit') || text.includes('카테고리 선택') || text.includes('카테고리 편집')) && isVisible(el)
-    })
-
-  if (headers.length > 0) {
-    // 1. 텍스트가 정확히 'Cancel' 또는 '취소'인 버튼 검색
-    const cancelButtons = Array.from(document.querySelectorAll<HTMLElement>('button, span, div'))
-      .filter((el) => {
-        const text = el.textContent?.trim().toLowerCase() ?? ''
-        return (text === 'cancel' || text === '취소' || text === 'close') && isVisible(el)
-      })
-
-    if (cancelButtons.length > 0) {
-      const target = cancelButtons.find(el => el.tagName === 'BUTTON') ?? cancelButtons[0]
-      target.click()
-      console.log('Category modal dismissed via Cancel button.')
-      return true
-    }
-    
-    // 2. 모달 우측 상단의 'X' 아이콘 버튼 클릭 시도
-    const closeButtons = Array.from(document.querySelectorAll<HTMLElement>('button, span, svg'))
-      .filter((el) => {
-        const ariaLabel = el.getAttribute('aria-label')?.toLowerCase() ?? ''
-        const className = typeof el.className === 'string' ? el.className.toLowerCase() : ''
-        return (ariaLabel.includes('close') || className.includes('close') || className.includes('modal-close')) && isVisible(el)
-      })
-      
-    if (closeButtons.length > 0) {
-      closeButtons[0].click()
-      console.log('Category modal dismissed via Close button.')
-      return true
-    }
-  }
-  return false
-}
-
 async function selectRecommendedCategory(draft: ProductDraft): Promise<FillFieldResult> {
   const targetCategory = draft.categoryPath?.trim()
-  
-  // 1. 만약 카테고리 모달이 이미 열려있다면 캔슬(취소) 버튼을 눌러 닫기
-  dismissCategoryModal()
-  
+
   // 최대 4.5초 대기 (500ms 간격으로 9번 확인)
   let attempts = 0
   while (attempts < 9) {
-    // 루프 중간에 쇼피가 자동으로 카테고리 모달을 다시 여는 케이스를 차단하기 위해 감시 및 닫기
-    dismissCategoryModal()
-    
     await new Promise((resolve) => window.setTimeout(resolve, 500))
     attempts++
-    
+
     const options = findRecommendedCategories()
     if (options.length > 0) {
       const normalizePath = (p: string) => p.toLowerCase().replace(/\s+/g, '')
       const normalizedTarget = normalizePath(targetCategory || '')
-      
+
       // 1. AI 예측 카테고리와 정확히 일치하거나 하위 카테고리명이 일치하는 추천 카테고리 검색
       const matchedOption = options.find(
         (opt) => normalizePath(opt.text) === normalizedTarget
       ) ?? options.find(
         (opt) => opt.text.toLowerCase().includes(targetCategory?.toLowerCase() || 'nevermatch')
       )
-      
+
       if (matchedOption) {
         matchedOption.element.click()
         return {
@@ -377,7 +344,7 @@ async function selectRecommendedCategory(draft: ProductDraft): Promise<FillField
           message: `추천 카테고리 매칭 선택: ${matchedOption.text}`
         }
       }
-      
+
       // 2. 일치 항목이 없으면 첫 번째 추천 카테고리(Shopee의 탑 추천) 자동 선택
       const firstOption = options[0]
       firstOption.element.click()
@@ -388,20 +355,8 @@ async function selectRecommendedCategory(draft: ProductDraft): Promise<FillField
       }
     }
   }
-  
-  // 만약 4.5초 동안 대기했으나 추천 영역을 찾지 못했고, 그 사이에 모달도 없었다면 최종적으로 한 번 더 추천 영역 검색 시도
-  const finalOptions = findRecommendedCategories()
-  if (finalOptions.length > 0) {
-    const firstOption = finalOptions[0]
-    firstOption.element.click()
-    return {
-      field: 'Category',
-      success: true,
-      message: `추천 카테고리 첫 번째 자동 선택 (폴백): ${firstOption.text}`
-    }
-  }
-  
-  // 끝내 추천 리스트를 찾지 못하는 경우, 기존의 매뉴얼 팝업 열기 동작 트리거
+
+  // 추천 리스트가 끝내 올라오지 않는 경우, 기존 매뉴얼 팝업 트리거
   return promptCategorySelection(draft)
 }
 
@@ -527,18 +482,18 @@ function retryDynamicFields(draft: ProductDraft) {
 async function fillShopeeProduct(draft: ProductDraft): Promise<FillResponse> {
   // 1. Product Name을 먼저 입력해야 쇼피에서 추천 카테고리를 로딩하기 시작합니다.
   const nameResult = fillField('Product Name', draft.productName, fieldKeywords.productName, false, ['name'])
-  
+
   // 2. 이미지 및 상품 설명 입력
   const imageResult = await fillProductImage(draft)
   const descResult = fillField('Product Description', draft.productDescription, fieldKeywords.productDescription, true, ['description'])
-  
+
   // 3. 추천 카테고리 대기 후 선택 (일치 항목 또는 첫 번째 추천 선택)
   const categoryResult = await selectRecommendedCategory(draft)
-  
+
   // 카테고리가 입력되어 활성화되었을 브랜드 및 스펙/동적 필드 입력 시도
   const brandResult = await selectBrand(draft.brand || 'No Brand')
   const dynamicResults = fillDynamicFields(draft)
-  
+
   const results = [
     imageResult,
     nameResult,
@@ -547,11 +502,11 @@ async function fillShopeeProduct(draft: ProductDraft): Promise<FillResponse> {
     categoryResult,
     ...dynamicResults,
   ]
-  
+
   // 실패한 항목(카테고리 로딩 지연 등으로 활성화가 늦어진 경우) 백그라운드 재시도
   if (dynamicResults.some((result) => !result.success)) retryDynamicFields(draft)
   if (!brandResult.success) retryBrand(draft)
-  
+
   const successCount = results.filter((result) => result.success).length
   return {
     success: successCount > 0,
@@ -573,3 +528,4 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     return true
   }
 })
+
