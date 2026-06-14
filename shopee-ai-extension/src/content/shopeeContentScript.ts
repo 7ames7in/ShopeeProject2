@@ -260,6 +260,21 @@ async function selectBrand(brand: string): Promise<FillFieldResult> {
   }
 }
 
+function clickCategoryCancelButton(): boolean {
+  const cancelButton = Array.from(document.querySelectorAll<HTMLElement>(
+    'button.eds-button, button.eds-button--normal, button'
+  )).find((el) => {
+    const text = el.textContent?.trim()
+    return isVisible(el) && (text === 'Cancel' || text === '취소')
+  })
+
+  if (cancelButton) {
+    cancelButton.click()
+    return true
+  }
+  return false
+}
+
 function findCategoryTrigger() {
   const stableCategory = document.querySelector<HTMLElement>('[data-product-edit-field-unique-id="category"]')
   if (stableCategory && isVisible(stableCategory)) return stableCategory
@@ -275,6 +290,12 @@ function promptCategorySelection(draft: ProductDraft): FillFieldResult {
   trigger.scrollIntoView({ behavior: 'smooth', block: 'center' })
   trigger.dataset.shopeeAiDraftCategory = draft.categoryPath
   trigger.click()
+
+  // 3초 후 카테고리 팝업의 Cancel 버튼 클릭 시도
+  window.setTimeout(() => {
+    clickCategoryCancelButton()
+  }, 3000)
+
   return {
     field: 'Category',
     success: false,
