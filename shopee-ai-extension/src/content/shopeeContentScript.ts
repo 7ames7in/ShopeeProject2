@@ -5,7 +5,6 @@ type FormControl = HTMLInputElement | HTMLTextAreaElement | HTMLElement
 const fieldKeywords = {
   productName: ['product name', 'global product name', '상품명', 'ชื่อสินค้า', 'nama produk'],
   category: ['category', '카테고리', 'หมวดหมู่', 'kategori'],
-  brand: ['brand', '브랜드', 'ยี่ห้อ', 'merek'],
   productDescription: ['product description', 'description', '상세 설명', 'คำอธิบายสินค้า', 'deskripsi produk'],
   globalSkuPrice: ['global sku price', 'price', '판매가', '가격', 'harga'],
   weight: ['weight', '무게', 'น้ำหนัก', 'berat'],
@@ -145,118 +144,6 @@ function fillField(field: string, value: string, keywords: string[], preferTexta
     return { field, success: true, message: commitWithEnter ? '입력 후 Enter 완료' : '입력 완료' }
   } catch (error) {
     return { field, success: false, message: error instanceof Error ? error.message : '입력 실패' }
-  }
-}
-
-function findSelectionTrigger(keywords: string[]): HTMLElement | null {
-  // 1. User's specific Edit Row / Element Plus selector logic for Shopee Seller Center
-  const editLabels = Array.from(document.querySelectorAll<HTMLElement>('.edit-label'))
-  const matchingLabel = editLabels.find((el) => {
-    const text = el.textContent ?? ''
-    return keywords.some((keyword) => text.toLowerCase().includes(keyword.toLowerCase()))
-  })
-
-  if (matchingLabel) {
-    const editRow = matchingLabel.closest('.edit-row')
-    if (editRow) {
-      const clickableElement = editRow.querySelector<HTMLElement>(
-        '.el-select, .el-cascader, .el-input__inner, [role="combobox"], .select-trigger, .eds-selector, .eds-selector__inner'
-      )
-      if (clickableElement && isVisible(clickableElement)) {
-        return clickableElement
-      }
-    }
-  }
-
-  // 2. Fallback to existing label-parent traversal logic
-  const normalizedKeywords = keywords.map(normalizeText)
-  const labels = Array.from(document.querySelectorAll<HTMLElement>('label, div, span'))
-    .filter((element) => {
-      const text = normalizeText(element.textContent)
-      return text.length > 0 && text.length < 40 && normalizedKeywords.some((keyword) => text === keyword || text === `* ${keyword}`)
-    })
-
-  for (const label of labels) {
-    let container: HTMLElement | null = label.parentElement
-    for (let depth = 0; depth < 4 && container; depth += 1, container = container.parentElement) {
-      const explicit = Array.from(container.querySelectorAll<HTMLElement>(
-        'input:not([type="hidden"]), button, [role="combobox"], [aria-haspopup="listbox"], [class*="select"], .eds-selector, .eds-selector__inner',
-      )).filter((element) => element !== label && isVisible(element))
-      const placeholder = explicit.find((element) => {
-        const text = normalizeText((element as HTMLInputElement).placeholder ?? element.textContent)
-        return text.includes('please select') || text.includes('No brand')
-      })
-      if (placeholder) return placeholder
-      if (explicit.length === 1) return explicit[0]
-    }
-  }
-  return null
-}
-
-function findVisibleOption(value: string): HTMLElement | null {
-  const target = normalizeText(value)
-  return Array.from(document.querySelectorAll<HTMLElement>(
-    '[role="option"], li, [class*="option"], [class*="menu-item"], [class*="select-item"]',
-  )).find((element) => isVisible(element) && normalizeText(element.textContent) === target) ?? null
-}
-
-async function selectBrand(brand: string): Promise<FillFieldResult> {
-  const value = brand.trim() || 'No brand'
-
-  const trigger = findSelectionTrigger(fieldKeywords.brand)
-  if (!trigger) return { field: 'Brand', success: false, message: 'Brand 선택 영역을 찾지 못함' }
-
-  try {
-    trigger.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    trigger.focus()
-    trigger.click()
-
-    // 드롭다운 패널 열릴 때까지 500ms 대기
-    await new Promise((resolve) => window.setTimeout(resolve, 500))
-
-    // "No brand"인 경우 첫 번째 옵션 직접 선택
-    if (value.toLowerCase() === 'no brand') {
-      const option = Array.from(document.querySelectorAll<HTMLElement>(
-        '.el-select-dropdown__item, [role="option"], li, [class*="option"], [class*="menu-item"], [class*="select-item"]'
-      )).find((el) => isVisible(el))
-
-      if (!option) {
-        document.body.click() // 드롭다운 닫기
-        return { field: 'Brand', success: false, message: 'No brand 옵션(첫 번째 옵션)을 찾지 못함' }
-      }
-
-      option.click()
-      return { field: 'Brand', success: true, message: `No brand 첫 번째 옵션 선택 완료: ${option.textContent?.trim()}` }
-    }
-
-    // 드롭다운 내부에 있는 검색 인풋 찾기 (Product Name 등 페이지 내 타 입력창과 섞이지 않도록 드롭다운 내부로 한정)
-    const searchInput = Array.from(document.querySelectorAll<HTMLInputElement>(
-      '.el-select-dropdown input, .el-popper input, [role="listbox"] input, [class*="dropdown"] input, [class*="popper"] input'
-    )).find((el) => isVisible(el))
-
-    if (searchInput) {
-      // 검색창 포커싱 및 텍스트 타이핑
-      searchInput.focus()
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-      if (setter) setter.call(searchInput, value)
-      else searchInput.value = value
-
-      searchInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }))
-      searchInput.dispatchEvent(new Event('change', { bubbles: true }))
-
-      // 검색 필터링 렌더링을 위해 800ms 대기
-      await new Promise((resolve) => window.setTimeout(resolve, 800))
-    }
-
-    const option = findVisibleOption(value)
-    if (!option) {
-      document.body.click() // 드롭다운 닫기
-      return { field: 'Brand', success: false, message: `검색 후 ${value} 옵션을 찾지 못함` }
-    }
-    option.click()
-    return { field: 'Brand', success: true, message: `${value} 선택 완료` }
-  } catch (error) {
-    return { field: 'Brand', success: false, message: error instanceof Error ? error.message : 'Brand 선택 실패' }
   }
 }
 
@@ -448,25 +335,6 @@ function fillDynamicFields(draft: ProductDraft): FillFieldResult[] {
   ]
 }
 
-function retryBrand(draft: ProductDraft) {
-  let attempts = 0
-  let selecting = false
-  const timer = window.setInterval(async () => {
-    if (selecting) return
-    attempts += 1
-    selecting = true
-    const result = await selectBrand(draft.brand || 'No brand')
-    selecting = false
-    if (result.success) {
-      window.clearInterval(timer)
-      showPageStatus(`${draft.brand || 'No brand'} Brand 자동 선택을 완료했습니다.`, true)
-    } else if (attempts >= 40) {
-      window.clearInterval(timer)
-      showPageStatus(`Brand에서 ${draft.brand || 'No brand'}를 직접 선택해 주세요.`)
-    }
-  }, 1500)
-}
-
 function showPageStatus(message: string, complete = false) {
   const id = 'shopee-ai-draft-status'
   let status = document.getElementById(id)
@@ -524,22 +392,19 @@ async function fillShopeeProduct(draft: ProductDraft): Promise<FillResponse> {
   // 3. 추천 카테고리 대기 후 선택 (일치 항목 또는 첫 번째 추천 선택)
   const categoryResult = await selectRecommendedCategory(draft)
 
-  // 카테고리가 입력되어 활성화되었을 브랜드 및 스펙/동적 필드 입력 시도
-  const brandResult = await selectBrand(draft.brand || 'No brand')
+  // 카테고리가 입력되어 활성화되었을 스펙/동적 필드 입력 시도
   const dynamicResults = fillDynamicFields(draft)
 
   const results = [
     imageResult,
     nameResult,
     descResult,
-    brandResult,
     categoryResult,
     ...dynamicResults,
   ]
 
   // 실패한 항목(카테고리 로딩 지연 등으로 활성화가 늦어진 경우) 백그라운드 재시도
   if (dynamicResults.some((result) => !result.success)) retryDynamicFields(draft)
-  if (!brandResult.success) retryBrand(draft)
 
   const successCount = results.filter((result) => result.success).length
   return {
