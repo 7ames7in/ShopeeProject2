@@ -188,11 +188,37 @@ async function selectBrand(brand: string): Promise<FillFieldResult> {
   try {
     trigger.scrollIntoView({ behavior: 'smooth', block: 'center' })
     trigger.click()
-    await new Promise((resolve) => window.setTimeout(resolve, 350))
+    
+    // 드롭다운이 열릴 때까지 대기
+    await new Promise((resolve) => window.setTimeout(resolve, 500))
+    
+    // 드롭다운 내부에 있는 검색창(Input) 찾기
+    const searchInput = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
+      .find((el) => isVisible(el) && (
+        el.placeholder?.toLowerCase().includes('character') || 
+        el.placeholder?.toLowerCase().includes('input') || 
+        el.placeholder?.toLowerCase().includes('search') || 
+        el.placeholder?.toLowerCase().includes('브랜드')
+      ))
+      
+    if (searchInput) {
+      // 검색창에 브랜드명 입력 및 이벤트 디스패치
+      searchInput.focus()
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      if (setter) setter.call(searchInput, value)
+      else searchInput.value = value
+      
+      searchInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }))
+      searchInput.dispatchEvent(new Event('change', { bubbles: true }))
+      
+      // 검색 결과 필터링 완료를 위한 대기
+      await new Promise((resolve) => window.setTimeout(resolve, 800))
+    }
+    
     const option = findVisibleOption(value)
     if (!option) {
-      document.body.click()
-      return { field: 'Brand', success: false, message: `${value} 옵션을 찾지 못함` }
+      document.body.click() // 드롭다운 닫기
+      return { field: 'Brand', success: false, message: `검색 후 ${value} 옵션을 찾지 못함` }
     }
     option.click()
     return { field: 'Brand', success: true, message: `${value} 선택 완료` }
@@ -216,12 +242,20 @@ function promptCategorySelection(draft: ProductDraft): FillFieldResult {
   trigger.scrollIntoView({ behavior: 'smooth', block: 'center' })
   trigger.dataset.shopeeAiDraftCategory = draft.categoryPath
   trigger.click()
+  
+  // 3초 후에 카테고리 팝업창을 자동으로 닫는 타이머 설정
+  window.setTimeout(() => {
+    if (dismissCategoryModal()) {
+      console.log('Category modal dismissed automatically after timeout.')
+    }
+  }, 3000)
+
   return {
     field: 'Category',
     success: false,
     message: draft.categoryPath && draft.categoryPath !== 'Uncategorized'
-      ? `직접 선택 필요: ${draft.categoryPath}`
-      : '카테고리를 직접 선택해 주세요',
+      ? `직접 선택 필요 (3초 후 팝업 자동 닫힘): ${draft.categoryPath}`
+      : '카테고리를 직접 선택해 주세요 (3초 후 팝업 자동 닫힘)',
   }
 }
 
