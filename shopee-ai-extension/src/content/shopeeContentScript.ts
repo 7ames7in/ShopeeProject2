@@ -202,21 +202,32 @@ function findVisibleOption(value: string): HTMLElement | null {
 
 async function selectBrand(brand: string): Promise<FillFieldResult> {
   const value = brand.trim() || 'No brand'
-  
-  // No Brand 자동 셋팅 기능 해제 요구사항 반영
-  if (!value || value.toLowerCase() === 'no brand') {
-    return { field: 'Brand', success: true, message: 'No Brand 자동 설정 해제됨' }
-  }
 
   const trigger = findSelectionTrigger(fieldKeywords.brand)
   if (!trigger) return { field: 'Brand', success: false, message: 'Brand 선택 영역을 찾지 못함' }
 
   try {
     trigger.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    trigger.focus()
     trigger.click()
 
     // 드롭다운 패널 열릴 때까지 500ms 대기
     await new Promise((resolve) => window.setTimeout(resolve, 500))
+
+    // "No brand"인 경우 첫 번째 옵션 직접 선택
+    if (value.toLowerCase() === 'no brand') {
+      const option = Array.from(document.querySelectorAll<HTMLElement>(
+        '.el-select-dropdown__item, [role="option"], li, [class*="option"], [class*="menu-item"], [class*="select-item"]'
+      )).find((el) => isVisible(el))
+
+      if (!option) {
+        document.body.click() // 드롭다운 닫기
+        return { field: 'Brand', success: false, message: 'No brand 옵션(첫 번째 옵션)을 찾지 못함' }
+      }
+
+      option.click()
+      return { field: 'Brand', success: true, message: `No brand 첫 번째 옵션 선택 완료: ${option.textContent?.trim()}` }
+    }
 
     // 드롭다운 내부에 있는 검색 인풋 찾기 (Product Name 등 페이지 내 타 입력창과 섞이지 않도록 드롭다운 내부로 한정)
     const searchInput = Array.from(document.querySelectorAll<HTMLInputElement>(
