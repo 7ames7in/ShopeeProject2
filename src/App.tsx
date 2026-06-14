@@ -457,7 +457,13 @@ function App() {
           </section>
         )}
 
-        {screen === 'loading' && <LoadingScreen step={loadingStep} previewUrl={images[0]?.url ?? ''} imageCount={images.length} />}
+        {screen === 'loading' && (
+          <LoadingScreen
+            step={loadingStep}
+            previewUrls={images.map((item) => item.url)}
+            imageCount={images.length}
+          />
+        )}
 
         {screen === 'result' && draft && (
           <ResultScreen
@@ -501,11 +507,23 @@ function ErrorBanner({ message, onClose }: { message: string; onClose: () => voi
   )
 }
 
-function LoadingScreen({ step, previewUrl, imageCount }: { step: number; previewUrl: string; imageCount: number }) {
+function LoadingScreen({ step, previewUrls, imageCount }: { step: number; previewUrls: string[]; imageCount: number }) {
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  useEffect(() => {
+    if (previewUrls.length <= 1) return
+    const timer = window.setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % previewUrls.length)
+    }, 1500)
+    return () => window.clearInterval(timer)
+  }, [previewUrls])
+
+  const activeUrl = previewUrls[currentIndex] || ''
+
   return (
     <section className="screen loading-screen">
       <div className="loading-visual">
-        {previewUrl && <img src={previewUrl} alt="" />}
+        {activeUrl && <img src={activeUrl} alt="" />}
         <span className="scan-line" />
         <span className="loading-spark"><Sparkles size={23} /></span>
       </div>

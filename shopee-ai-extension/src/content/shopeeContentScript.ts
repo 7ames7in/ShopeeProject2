@@ -302,7 +302,7 @@ async function fillProductImage(draft: ProductDraft): Promise<FillFieldResult> {
   }
 
   try {
-    const transfer = new DataTransfer()
+    const files: File[] = []
     const errors: string[] = []
 
     for (let i = 0; i < imageUrls.length; i++) {
@@ -323,24 +323,45 @@ async function fillProductImage(draft: ProductDraft): Promise<FillFieldResult> {
         }
 
         const file = await dataUrlToFile(dataUrl, fileName)
-        transfer.items.add(file)
+        files.push(file)
       } catch (err) {
         errors.push(`${i + 1}번째 이미지 실패: ${err instanceof Error ? err.message : '알 수 없음'}`)
       }
     }
 
-    if (transfer.files.length === 0) {
+    if (files.length === 0) {
       return { field: 'Product Image', success: false, message: `이미지 다운로드 전체 실패: ${errors.join(', ')}` }
     }
 
-    fileInput.files = transfer.files
-    fileInput.dispatchEvent(new Event('input', { bubbles: true }))
-    fileInput.dispatchEvent(new Event('change', { bubbles: true }))
+    let uploadedCount = 0
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      try {
+        showPageStatus(`이미지 업로드 중 (${i + 1}/${files.length}번째)...`)
+
+        const singleTransfer = new DataTransfer()
+        singleTransfer.items.add(file)
+
+        fileInput.files = singleTransfer.files
+        fileInput.dispatchEvent(new Event('input', { bubbles: true }))
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }))
+
+        uploadedCount++
+
+        // Shopee UI needs some time to register the change event and handle the file upload.
+        // Wait for 1.5 seconds before triggering the next file upload.
+        if (i < files.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1500))
+        }
+      } catch (err) {
+        errors.push(`${i + 1}번째 이미지 등록 실패: ${err instanceof Error ? err.message : '알 수 없음'}`)
+      }
+    }
 
     if (errors.length > 0) {
-      return { field: 'Product Image', success: true, message: `일부 이미지 업로드 완료 (${transfer.files.length}/${imageUrls.length}개)` }
+      return { field: 'Product Image', success: uploadedCount > 0, message: `일부 이미지 업로드 완료 (${uploadedCount}/${imageUrls.length}개)` }
     }
-    return { field: 'Product Image', success: true, message: `이미지 업로드 완료 (${transfer.files.length}개)` }
+    return { field: 'Product Image', success: true, message: `이미지 업로드 완료 (${uploadedCount}개)` }
   } catch (error) {
     return { field: 'Product Image', success: false, message: error instanceof Error ? error.message : '이미지 업로드 실패' }
   }
