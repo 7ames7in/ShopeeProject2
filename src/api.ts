@@ -28,6 +28,54 @@ function unwrap(value: unknown): unknown {
   return value
 }
 
+export function getLocalUpdates(): Record<string, any> {
+  try {
+    const stored = localStorage.getItem('shopee-draft-local-updates')
+    return stored ? JSON.parse(stored) : {}
+  } catch {
+    return {}
+  }
+}
+
+export function saveLocalUpdate(draftId: string, updates: Partial<ProductDraft>) {
+  try {
+    const current = getLocalUpdates()
+    const existing = current[draftId] || {}
+    current[draftId] = {
+      ...existing,
+      ...updates,
+      product: {
+        ...(existing.product ?? {}),
+        ...(updates.product ?? {})
+      } as Partial<ProductDraft['product']>
+    }
+    localStorage.setItem('shopee-draft-local-updates', JSON.stringify(current))
+  } catch (e) {
+    console.error('Failed to save local update:', e)
+  }
+}
+
+function mergeLocalUpdates(draft: ProductDraft): ProductDraft {
+  try {
+    const localUpdates = getLocalUpdates()
+    const updates = localUpdates[draft.draftId]
+    if (updates) {
+      return {
+        ...draft,
+        ...updates,
+        imageUrls: updates.imageUrls ?? draft.imageUrls,
+        product: {
+          ...draft.product,
+          ...(updates.product ?? {})
+        } as ProductDraft['product']
+      }
+    }
+  } catch (e) {
+    console.error('Failed to merge local updates:', e)
+  }
+  return draft
+}
+
 function normalizeDraft(value: unknown): ProductDraft {
   const raw = unwrap(value) as Record<string, unknown> | null
   if (!raw || typeof raw !== 'object') throw new Error('Draft 정보를 찾을 수 없습니다.')
@@ -55,7 +103,7 @@ function normalizeDraft(value: unknown): ProductDraft {
   if (!category || /Uncategorized/i.test(category)) qualityWarnings.push('카테고리가 분석되지 않았습니다.')
   if (!productDescription || /placeholder/i.test(productDescription)) qualityWarnings.push('실제 AI 상품 설명이 생성되지 않았습니다.')
 
-  return {
+  const draft = {
     draftId,
     status: String(raw.status ?? dataSource.status ?? 'READY_FOR_EXTENSION'),
     createdAt: raw.createdAt ? String(raw.createdAt) : raw.created_at ? String(raw.created_at) : dataSource.createdAt ? String(dataSource.createdAt) : dataSource.created_at ? String(dataSource.created_at) : undefined,
@@ -78,6 +126,7 @@ function normalizeDraft(value: unknown): ProductDraft {
       specifications: (dataSource.specifications ?? {}) as Record<string, string>,
     },
   }
+  return mergeLocalUpdates(draft)
 }
 
 export async function createDraft(input: CreateDraftInput): Promise<ProductDraft> {
@@ -188,5 +237,30 @@ export async function deleteDraft(draftId: string): Promise<void> {
   } catch (error) {
     console.warn('Backend delete endpoint not available or failed to fetch, fallback to local deletion:', error)
   }
+}
+
+export async function updateDraft(draftId: string, updates: Partial<ProductDraft>): Promise<ProductDraft> {
+  // 1. 로컬 저장소 갱신
+  saveLocalUpdate(draftId, updates)
+
+  const localUpdates = getLocalUpdates()
+  const currentMerged = localUpdates[draftId]
+
+  // 2. 백엔드 웹훅 갱신 시도
+  try {
+    const response = await fetch(`${BASE_URL}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draftId, ...currentMerged }),
+    })
+    const data = unwrap(await parseResponse(response))
+    if (data) return normalizeDraft(data)
+  } catch (error) {
+    console.warn('Backend update endpoint failed, using local update:', error)
+  }
+
+  // 백엔드 실패 시 로컬 데이터를 머지한 가상 객체 반환
+  const mockRaw = { draftId, ...currentMerged }
+  return normalizeDraft(mockRaw)
 }
 

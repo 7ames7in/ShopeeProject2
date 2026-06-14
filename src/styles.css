@@ -231,6 +231,34 @@ h1, h2, p { margin: 0; }
 .detail-header .back-button {
   margin-bottom: 0;
 }
+.detail-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.detail-edit-button {
+  border: 1px solid var(--orange);
+  background: #fff;
+  color: var(--orange);
+  border-radius: 9px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.detail-edit-button:hover, .detail-edit-button:active {
+  background: #fff0eb;
+}
+.detail-edit-button.saving {
+  background: var(--orange);
+  color: #fff;
+}
+.detail-edit-button.saving:hover, .detail-edit-button.saving:active {
+  background: var(--orange-dark);
+}
 .detail-delete-button {
   border: 1px solid var(--line);
   background: #fff;
@@ -248,6 +276,45 @@ h1, h2, p { margin: 0; }
   background: #fff1ed;
   border-color: #ffddd5;
   color: #a53722;
+}
+.edit-input-field {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  background: #faf8f6;
+  margin-top: 4px;
+}
+.edit-input-field:focus {
+  border-color: var(--orange);
+  background: #fff;
+}
+.edit-textarea-field {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+  background: #faf8f6;
+  margin-top: 4px;
+  resize: vertical;
+}
+.edit-textarea-field:focus {
+  border-color: var(--orange);
+  background: #fff;
+}
+.field-value-readonly {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+  color: var(--muted);
 }
 
 .danger-button {

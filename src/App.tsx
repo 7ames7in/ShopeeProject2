@@ -19,7 +19,7 @@ import {
   Weight,
   X,
 } from 'lucide-react'
-import { createDraft, deleteDraft, getDraft, listDrafts, markDraftUsed } from './api'
+import { createDraft, deleteDraft, getDraft, listDrafts, markDraftUsed, updateDraft } from './api'
 import type { CreateDraftInput, Currency, ProductDraft, WeightUnit } from './types'
 
 type Screen = 'create' | 'loading' | 'result' | 'list'
@@ -271,16 +271,20 @@ function App() {
     }
   }
 
-  function handleRemoveDraftImage(url: string) {
-    if (draft) {
-      setDraft((current) => {
-        if (!current) return null
-        return {
-          ...current,
-          imageUrls: current.imageUrls.filter((item) => item !== url)
-        }
-      })
+  async function handleRemoveDraftImage(url: string) {
+    if (!draft) return
+    const updatedUrls = draft.imageUrls.filter((item) => item !== url)
+    setDraft({
+      ...draft,
+      imageUrls: updatedUrls
+    })
+
+    try {
+      await updateDraft(draft.draftId, { imageUrls: updatedUrls })
+    } catch (e) {
+      console.error('Failed to save image deletion:', e)
     }
+
     setImages((current) => {
       const targetIndex = current.findIndex((item) => item.url === url)
       if (targetIndex !== -1) {
@@ -289,6 +293,17 @@ function App() {
       }
       return current
     })
+  }
+
+  async function handleUpdateDraft(updates: Partial<ProductDraft>) {
+    if (!draft) return
+    setError('')
+    try {
+      const result = await updateDraft(draft.draftId, updates)
+      setDraft(result)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '수정에 실패했습니다. 다시 시도해 주세요.')
+    }
   }
 
   return (
@@ -457,6 +472,7 @@ function App() {
             onReset={reset}
             onDelete={handleDeleteDraft}
             onRemoveImage={handleRemoveDraftImage}
+            onUpdate={handleUpdateDraft}
           />
         )}
 
@@ -521,21 +537,74 @@ type ResultProps = {
   onReset: () => void
   onDelete: (id: string) => void
   onRemoveImage: (url: string) => void
+  onUpdate: (updates: Partial<ProductDraft>) => Promise<void>
 }
 
-function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset, onDelete, onRemoveImage }: ResultProps) {
+function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset, onDelete, onRemoveImage, onUpdate }: ResultProps) {
   const { product } = draft
   const isUsed = draft.status.toUpperCase().includes('USED')
   const hasQualityIssue = draft.qualityWarnings.length > 0
   const reviewImages = draft.imageUrls.length > 0 ? draft.imageUrls : localImageUrls
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({
+    productName: product.productName,
+    category: product.category,
+    brand: product.brand,
+    price: product.globalSkuPrice,
+    weight: String(product.weight),
+    stock: String(product.stock),
+    daysToShip: String(product.daysToShip),
+    productDescription: product.productDescription,
+  })
+
+  useEffect(() => {
+    setEditForm({
+      productName: product.productName,
+      category: product.category,
+      brand: product.brand,
+      price: product.globalSkuPrice,
+      weight: String(product.weight),
+      stock: String(product.stock),
+      daysToShip: String(product.daysToShip),
+      productDescription: product.productDescription,
+    })
+  }, [draft])
+
   return (
     <section className="screen result-screen">
       <div className="detail-header">
         <button className="back-button" onClick={onBack}><ArrowLeft size={18} /> Draft 목록</button>
-        <button className="detail-delete-button" onClick={() => onDelete(draft.draftId)} aria-label="Draft 삭제">
-          <Trash2 size={16} />
-          삭제
-        </button>
+        <div className="detail-header-actions">
+          <button
+            className={`detail-edit-button ${isEditing ? 'saving' : ''}`}
+            onClick={async () => {
+              if (isEditing) {
+                const updates = {
+                  product: {
+                    ...product,
+                    productName: editForm.productName,
+                    category: editForm.category,
+                    brand: editForm.brand,
+                    globalSkuPrice: editForm.price,
+                    weight: Number(editForm.weight),
+                    stock: Number(editForm.stock),
+                    daysToShip: Number(editForm.daysToShip),
+                    productDescription: editForm.productDescription,
+                  }
+                }
+                await onUpdate(updates)
+              }
+              setIsEditing(!isEditing)
+            }}
+          >
+            {isEditing ? '저장 완료' : '정보 수정'}
+          </button>
+          <button className="detail-delete-button" onClick={() => onDelete(draft.draftId)} aria-label="Draft 삭제">
+            <Trash2 size={16} />
+            삭제
+          </button>
+        </div>
       </div>
       <div className="success-heading">
         <span className={`success-icon ${hasQualityIssue ? 'warning' : ''}`}>{hasQualityIssue ? <AlertTriangle size={29} /> : <CheckCircle2 size={29} />}</span>
@@ -593,23 +662,108 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
       </div>
 
       <div className="result-card">
-        <ResultField label="Product Name" value={product.productName} onCopy={() => onCopy(product.productName, 'name')} copied={copied === 'name'} />
-        <ResultField label="Category" value={product.category} />
-        <div className="result-grid">
-          <ResultField label="Brand" value={product.brand} />
-          <ResultField label="Condition" value={product.condition} />
-          <ResultField label="Price" value={`${product.currency} ${product.globalSkuPrice}`} />
-          <ResultField label="Weight" value={`${product.weight} ${product.weightUnit}`} />
-          <ResultField label="Stock" value={String(product.stock)} />
-          <ResultField label="Days to ship" value={`${product.daysToShip} day${product.daysToShip === 1 ? '' : 's'}`} />
-        </div>
-        <ResultField
-          label="Product Description"
-          value={product.productDescription}
-          long
-          onCopy={() => onCopy(product.productDescription, 'description')}
-          copied={copied === 'description'}
-        />
+        {isEditing ? (
+          <>
+            <div className="result-field">
+              <span className="field-label">Product Name</span>
+              <input
+                className="edit-input-field"
+                type="text"
+                value={editForm.productName}
+                onChange={(e) => setEditForm({ ...editForm, productName: e.target.value })}
+              />
+            </div>
+            <div className="result-field">
+              <span className="field-label">Category</span>
+              <input
+                className="edit-input-field"
+                type="text"
+                value={editForm.category}
+                onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+              />
+            </div>
+            <div className="result-grid">
+              <div className="result-field">
+                <span className="field-label">Brand</span>
+                <input
+                  className="edit-input-field"
+                  type="text"
+                  value={editForm.brand}
+                  onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
+                />
+              </div>
+              <div className="result-field">
+                <span className="field-label">Condition</span>
+                <span className="field-value-readonly">{product.condition}</span>
+              </div>
+              <div className="result-field">
+                <span className="field-label">Price ({product.currency})</span>
+                <input
+                  className="edit-input-field"
+                  type="number"
+                  value={editForm.price}
+                  onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+                />
+              </div>
+              <div className="result-field">
+                <span className="field-label">Weight ({product.weightUnit})</span>
+                <input
+                  className="edit-input-field"
+                  type="number"
+                  value={editForm.weight}
+                  onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
+                />
+              </div>
+              <div className="result-field">
+                <span className="field-label">Stock</span>
+                <input
+                  className="edit-input-field"
+                  type="number"
+                  value={editForm.stock}
+                  onChange={(e) => setEditForm({ ...editForm, stock: e.target.value })}
+                />
+              </div>
+              <div className="result-field">
+                <span className="field-label">Days to ship</span>
+                <input
+                  className="edit-input-field"
+                  type="number"
+                  value={editForm.daysToShip}
+                  onChange={(e) => setEditForm({ ...editForm, daysToShip: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="result-field long">
+              <span className="field-label">Product Description</span>
+              <textarea
+                className="edit-textarea-field"
+                rows={5}
+                value={editForm.productDescription}
+                onChange={(e) => setEditForm({ ...editForm, productDescription: e.target.value })}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <ResultField label="Product Name" value={product.productName} onCopy={() => onCopy(product.productName, 'name')} copied={copied === 'name'} />
+            <ResultField label="Category" value={product.category} />
+            <div className="result-grid">
+              <ResultField label="Brand" value={product.brand} />
+              <ResultField label="Condition" value={product.condition} />
+              <ResultField label="Price" value={`${product.currency} ${product.globalSkuPrice}`} />
+              <ResultField label="Weight" value={`${product.weight} ${product.weightUnit}`} />
+              <ResultField label="Stock" value={String(product.stock)} />
+              <ResultField label="Days to ship" value={`${product.daysToShip} day${product.daysToShip === 1 ? '' : 's'}`} />
+            </div>
+            <ResultField
+              label="Product Description"
+              value={product.productDescription}
+              long
+              onCopy={() => onCopy(product.productDescription, 'description')}
+              copied={copied === 'description'}
+            />
+          </>
+        )}
         {product.shortDescription && <ResultField label="Short Description" value={product.shortDescription} long />}
         {Object.keys(product.specifications).length > 0 && (
           <div className="specifications">
