@@ -268,12 +268,58 @@ function findRecommendedCategories(): { text: string; element: HTMLElement }[] {
   })
 }
 
+function dismissCategoryModal(): boolean {
+  // 'Edit Category' 또는 'Select Category'를 포함하는 헤더/타이틀이 있는지 확인
+  const headers = Array.from(document.querySelectorAll<HTMLElement>('div, h2, h3, span, p'))
+    .filter((el) => {
+      const text = el.textContent?.trim().toLowerCase() ?? ''
+      return (text.includes('edit category') || text.includes('select category') || text.includes('category edit') || text.includes('카테고리 선택') || text.includes('카테고리 편집')) && isVisible(el)
+    })
+
+  if (headers.length > 0) {
+    // 1. 텍스트가 정확히 'Cancel' 또는 '취소'인 버튼 검색
+    const cancelButtons = Array.from(document.querySelectorAll<HTMLElement>('button, span, div'))
+      .filter((el) => {
+        const text = el.textContent?.trim().toLowerCase() ?? ''
+        return (text === 'cancel' || text === '취소' || text === 'close') && isVisible(el)
+      })
+
+    if (cancelButtons.length > 0) {
+      const target = cancelButtons.find(el => el.tagName === 'BUTTON') ?? cancelButtons[0]
+      target.click()
+      console.log('Category modal dismissed via Cancel button.')
+      return true
+    }
+    
+    // 2. 모달 우측 상단의 'X' 아이콘 버튼 클릭 시도
+    const closeButtons = Array.from(document.querySelectorAll<HTMLElement>('button, span, svg'))
+      .filter((el) => {
+        const ariaLabel = el.getAttribute('aria-label')?.toLowerCase() ?? ''
+        const className = typeof el.className === 'string' ? el.className.toLowerCase() : ''
+        return (ariaLabel.includes('close') || className.includes('close') || className.includes('modal-close')) && isVisible(el)
+      })
+      
+    if (closeButtons.length > 0) {
+      closeButtons[0].click()
+      console.log('Category modal dismissed via Close button.')
+      return true
+    }
+  }
+  return false
+}
+
 async function selectRecommendedCategory(draft: ProductDraft): Promise<FillFieldResult> {
   const targetCategory = draft.categoryPath?.trim()
+  
+  // 1. 만약 카테고리 모달이 이미 열려있다면 캔슬(취소) 버튼을 눌러 닫기
+  dismissCategoryModal()
   
   // 최대 4.5초 대기 (500ms 간격으로 9번 확인)
   let attempts = 0
   while (attempts < 9) {
+    // 루프 중간에 쇼피가 자동으로 카테고리 모달을 다시 여는 케이스를 차단하기 위해 감시 및 닫기
+    dismissCategoryModal()
+    
     await new Promise((resolve) => window.setTimeout(resolve, 500))
     attempts++
     
@@ -309,7 +355,19 @@ async function selectRecommendedCategory(draft: ProductDraft): Promise<FillField
     }
   }
   
-  // 추천 리스트가 끝내 올라오지 않는 경우, 기존 매뉴얼 팝업 트리거
+  // 만약 4.5초 동안 대기했으나 추천 영역을 찾지 못했고, 그 사이에 모달도 없었다면 최종적으로 한 번 더 추천 영역 검색 시도
+  const finalOptions = findRecommendedCategories()
+  if (finalOptions.length > 0) {
+    const firstOption = finalOptions[0]
+    firstOption.element.click()
+    return {
+      field: 'Category',
+      success: true,
+      message: `추천 카테고리 첫 번째 자동 선택 (폴백): ${firstOption.text}`
+    }
+  }
+  
+  // 끝내 추천 리스트를 찾지 못하는 경우, 기존의 매뉴얼 팝업 열기 동작 트리거
   return promptCategorySelection(draft)
 }
 
