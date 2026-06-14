@@ -213,14 +213,10 @@ async function selectBrand(brand: string): Promise<FillFieldResult> {
     // 드롭다운 패널 열릴 때까지 500ms 대기
     await new Promise((resolve) => window.setTimeout(resolve, 500))
     
-    // 드롭다운 내부에 있는 검색 인풋 찾기
-    const searchInput = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
-      .find((el) => isVisible(el) && (
-        el.placeholder?.toLowerCase().includes('character') || 
-        el.placeholder?.toLowerCase().includes('input') || 
-        el.placeholder?.toLowerCase().includes('search') || 
-        el.placeholder?.toLowerCase().includes('브랜드')
-      ))
+    // 드롭다운 내부에 있는 검색 인풋 찾기 (Product Name 등 페이지 내 타 입력창과 섞이지 않도록 드롭다운 내부로 한정)
+    const searchInput = Array.from(document.querySelectorAll<HTMLInputElement>(
+      '.el-select-dropdown input, .el-popper input, [role="listbox"] input, [class*="dropdown"] input, [class*="popper"] input'
+    )).find((el) => isVisible(el))
       
     if (searchInput) {
       // 검색창 포커싱 및 텍스트 타이핑
