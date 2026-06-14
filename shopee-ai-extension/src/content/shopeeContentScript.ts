@@ -347,9 +347,26 @@ async function fillProductImage(draft: ProductDraft): Promise<FillFieldResult> {
 }
 
 function fillDynamicFields(draft: ProductDraft): FillFieldResult[] {
+  // 1. 가격 처리: 통화가 KRW(원)인 경우 USD로 변환 (기준 환율: 1 USD = 1380 KRW)
+  let priceVal = draft.globalSkuPrice
+  if (draft.currency && draft.currency.toUpperCase() === 'KRW') {
+    const krwNum = parseFloat(draft.globalSkuPrice.replace(/[^0-9.]/g, ''))
+    if (!isNaN(krwNum)) {
+      const rate = 1380
+      const usdVal = krwNum / rate
+      priceVal = usdVal.toFixed(2)
+    }
+  }
+
+  // 2. 무게 처리: 단위가 g인 경우 kg으로 변환
+  let weightVal = draft.weight
+  if (draft.weightUnit && draft.weightUnit.toLowerCase() === 'g') {
+    weightVal = draft.weight / 1000
+  }
+
   return [
-    fillField('Global SKU Price', draft.globalSkuPrice, fieldKeywords.globalSkuPrice, false, ['globalSkuPrice', 'global_sku_price', 'price'], true),
-    fillField('Weight', String(draft.weight), fieldKeywords.weight, false, ['weight']),
+    fillField('Global SKU Price', priceVal, fieldKeywords.globalSkuPrice, false, ['globalSkuPrice', 'global_sku_price', 'price'], true),
+    fillField('Weight', String(weightVal), fieldKeywords.weight, false, ['weight']),
     fillField('Stock', String(draft.stock || 1), fieldKeywords.stock, false, ['stock']),
     fillField('Days to ship', String(draft.daysToShip || 1), fieldKeywords.daysToShip, false, ['daysToShip', 'days_to_ship']),
   ]
