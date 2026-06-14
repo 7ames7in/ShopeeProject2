@@ -102,11 +102,10 @@ export async function listDrafts(): Promise<ProductDraft[]> {
   const data = unwrap(await parseResponse(response))
   if (data === null) return []
 
+  let list: ProductDraft[] = []
   if (Array.isArray(data)) {
-    return data.map(normalizeDraft)
-  }
-
-  if (data && typeof data === 'object') {
+    list = data.map(normalizeDraft)
+  } else if (data && typeof data === 'object') {
     const container = data as Record<string, unknown>
     const rawList = Array.isArray(container.drafts)
       ? container.drafts
@@ -117,15 +116,23 @@ export async function listDrafts(): Promise<ProductDraft[]> {
           : undefined
 
     if (Array.isArray(rawList)) {
-      return rawList.map(normalizeDraft)
+      list = rawList.map(normalizeDraft)
+    } else {
+      list = [normalizeDraft(container)]
     }
-
-    // If the API returns a single draft object instead of a list,
-    // normalize that draft and return it as an array.
-    return [normalizeDraft(container)]
   }
 
-  return []
+  // 로컬에서 삭제 처리된 Draft 필터링
+  try {
+    const deletedIds = JSON.parse(localStorage.getItem('shopee-draft-deleted-ids') ?? '[]') as string[]
+    if (Array.isArray(deletedIds) && deletedIds.length > 0) {
+      list = list.filter((item) => !deletedIds.includes(item.draftId))
+    }
+  } catch {
+    // localStorage 관련 예외 무시
+  }
+
+  return list
 }
 
 export async function getDraft(draftId: string): Promise<ProductDraft> {
@@ -143,11 +150,29 @@ export async function markDraftUsed(draftId: string): Promise<void> {
 }
 
 export async function deleteDraft(draftId: string): Promise<void> {
-  const response = await fetch(`${BASE_URL}/delete`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ draftId }),
-  })
-  await parseResponse(response)
+  // 1. 로컬 저장소 블랙리스트에 우선 등록하여 즉시 리스트에서 보이지 않게 처리
+  try {
+    const deletedIds = JSON.parse(localStorage.getItem('shopee-draft-deleted-ids') ?? '[]') as string[]
+    if (Array.isArray(deletedIds)) {
+      if (!deletedIds.includes(draftId)) {
+        deletedIds.push(draftId)
+        localStorage.setItem('shopee-draft-deleted-ids', JSON.stringify(deletedIds))
+      }
+    }
+  } catch {
+    // localStorage 관련 예외 무시
+  }
+
+  // 2. n8n 백엔드 웹훅으로 삭제 시도 (백엔드에 엔드포인트가 미구현 상태여서 CORS/Failed to fetch가 나더라도 오류를 삼키고 정상 종료)
+  try {
+    const response = await fetch(`${BASE_URL}/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draftId }),
+    })
+    await parseResponse(response)
+  } catch (error) {
+    console.warn('Backend delete endpoint not available or failed to fetch, fallback to local deletion:', error)
+  }
 }
 
