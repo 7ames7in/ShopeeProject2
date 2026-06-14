@@ -953,8 +953,30 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
+  const [naturalDimensions, setNaturalDimensions] = useState<{ width: number; height: number } | null>(null)
 
   const imageRef = useRef<HTMLImageElement>(null)
+
+  useEffect(() => {
+    if (!url) return
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.src = url
+    if (img.complete) {
+      if (img.naturalWidth && img.naturalHeight) {
+        setNaturalDimensions({ width: img.naturalWidth, height: img.naturalHeight })
+      }
+    }
+    img.onload = () => {
+      if (img.naturalWidth && img.naturalHeight) {
+        setNaturalDimensions({ width: img.naturalWidth, height: img.naturalHeight })
+      }
+    }
+    img.onerror = () => {
+      // Fallback to avoid infinite loading if image fails to load
+      setNaturalDimensions({ width: 300, height: 300 })
+    }
+  }, [url])
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     setIsDragging(true)
@@ -997,12 +1019,30 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
     setRotation(0)
   }
 
-  const handleSave = () => {
-    if (!imageRef.current) return
+  const viewportSize = 300
+  const previewSize = 120
 
-    const W_display = imageRef.current.clientWidth
-    const H_display = imageRef.current.clientHeight
-    if (W_display === 0 || H_display === 0) return
+  let W_fit = viewportSize
+  let H_fit = viewportSize
+  let W_fit_prev = previewSize
+  let H_fit_prev = previewSize
+
+  if (naturalDimensions) {
+    const { width: W_nat, height: H_nat } = naturalDimensions
+    const s = Math.min(viewportSize / W_nat, viewportSize / H_nat)
+    W_fit = W_nat * s
+    H_fit = H_nat * s
+
+    const s_prev = Math.min(previewSize / W_nat, previewSize / H_nat)
+    W_fit_prev = W_nat * s_prev
+    H_fit_prev = H_nat * s_prev
+  }
+
+  const handleSave = () => {
+    if (!imageRef.current || !naturalDimensions) return
+
+    const W_nat = naturalDimensions.width
+    const H_nat = naturalDimensions.height
 
     const canvas = document.createElement('canvas')
     const cropSize = 600
@@ -1019,15 +1059,15 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
     // Center coordinates
     ctx.translate(cropSize / 2, cropSize / 2)
 
-    const viewportSize = 300
     const scaleRatio = cropSize / viewportSize
 
     ctx.translate(offset.x * scaleRatio, offset.y * scaleRatio)
     ctx.rotate((rotation * Math.PI) / 180)
     ctx.scale(zoom, zoom)
 
-    const W_canvas = W_display * scaleRatio
-    const H_canvas = H_display * scaleRatio
+    const s = Math.min(viewportSize / W_nat, viewportSize / H_nat)
+    const W_canvas = (W_nat * s) * scaleRatio
+    const H_canvas = (H_nat * s) * scaleRatio
 
     try {
       ctx.drawImage(imageRef.current, -W_canvas / 2, -H_canvas / 2, W_canvas, H_canvas)
@@ -1047,116 +1087,123 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
           <button className="crop-close-btn" onClick={onClose}><X size={18} /></button>
         </div>
 
-        <div className="crop-modal-body">
-          <div className="crop-workspace-container">
-            <div
-              className="crop-workspace"
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-            >
-              <div className="crop-viewport">
-                <img
-                  ref={imageRef}
-                  src={url}
-                  crossOrigin="anonymous"
-                  alt="Cropping workspace"
-                  draggable={false}
-                  style={{
-                    transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${zoom})`,
-                    transformOrigin: 'center center',
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    objectFit: 'contain',
-                    userSelect: 'none',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </div>
-            </div>
-            <div className="crop-workspace-hint">마우스나 터치로 이미지를 드래그하여 위치를 조정하세요</div>
-          </div>
-
-          <div className="crop-right-panel">
-            <div className="crop-preview-label">미리보기 (1:1)</div>
-            <div className="crop-preview-box">
-              <div className="crop-preview-viewport">
-                <img
-                  src={url}
-                  crossOrigin="anonymous"
-                  alt="Cropped Preview"
-                  draggable={false}
-                  style={{
-                    transform: `translate(${offset.x * (120 / 300)}px, ${offset.y * (120 / 300)}px) rotate(${rotation}deg) scale(${zoom})`,
-                    transformOrigin: 'center center',
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    objectFit: 'contain',
-                    userSelect: 'none',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="crop-controls-title">확대 및 회전</div>
-            <div className="crop-controls-buttons">
-              <button
-                type="button"
-                className="crop-ctrl-btn"
-                onClick={() => setZoom((prev) => Math.max(1, prev - 0.1))}
-                title="Zoom Out"
-              >
-                <Minus size={15} />
-              </button>
-
-              <input
-                type="range"
-                min="1"
-                max="3"
-                step="0.05"
-                className="crop-zoom-slider"
-                value={zoom}
-                onChange={(e) => setZoom(parseFloat(e.target.value))}
-              />
-
-              <button
-                type="button"
-                className="crop-ctrl-btn"
-                onClick={() => setZoom((prev) => Math.min(3, prev + 0.1))}
-                title="Zoom In"
-              >
-                <Plus size={15} />
-              </button>
-
-              <button
-                type="button"
-                className="crop-ctrl-btn"
-                onClick={handleRotate}
-                title="Rotate 90°"
-              >
-                <RotateCw size={15} />
-              </button>
-
-              <button
-                type="button"
-                className="crop-ctrl-btn reset"
-                onClick={handleReset}
-                title="Reset"
-              >
-                리셋
-              </button>
+        {!naturalDimensions ? (
+          <div className="crop-modal-body" style={{ minHeight: '348px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <LoaderCircle className="spin" size={24} style={{ color: 'var(--orange)' }} />
+              <p style={{ fontSize: '13px', color: 'var(--muted)' }}>이미지를 불러오는 중...</p>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="crop-modal-body">
+            <div className="crop-workspace-container">
+              <div
+                className="crop-workspace"
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
+                <div className="crop-viewport">
+                  <img
+                    ref={imageRef}
+                    src={url}
+                    crossOrigin="anonymous"
+                    alt="Cropping workspace"
+                    draggable={false}
+                    style={{
+                      transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${zoom})`,
+                      transformOrigin: 'center center',
+                      width: `${W_fit}px`,
+                      height: `${H_fit}px`,
+                      userSelect: 'none',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="crop-workspace-hint">마우스나 터치로 이미지를 드래그하여 위치를 조정하세요</div>
+            </div>
+
+            <div className="crop-right-panel">
+              <div className="crop-preview-label">미리보기 (1:1)</div>
+              <div className="crop-preview-box">
+                <div className="crop-preview-viewport">
+                  <img
+                    src={url}
+                    crossOrigin="anonymous"
+                    alt="Cropped Preview"
+                    draggable={false}
+                    style={{
+                      transform: `translate(${offset.x * (previewSize / viewportSize)}px, ${offset.y * (previewSize / viewportSize)}px) rotate(${rotation}deg) scale(${zoom})`,
+                      transformOrigin: 'center center',
+                      width: `${W_fit_prev}px`,
+                      height: `${H_fit_prev}px`,
+                      userSelect: 'none',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="crop-controls-title">확대 및 회전</div>
+              <div className="crop-controls-buttons">
+                <button
+                  type="button"
+                  className="crop-ctrl-btn"
+                  onClick={() => setZoom((prev) => Math.max(1, prev - 0.1))}
+                  title="Zoom Out"
+                >
+                  <Minus size={15} />
+                </button>
+
+                <input
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="0.05"
+                  className="crop-zoom-slider"
+                  value={zoom}
+                  onChange={(e) => setZoom(parseFloat(e.target.value))}
+                />
+
+                <button
+                  type="button"
+                  className="crop-ctrl-btn"
+                  onClick={() => setZoom((prev) => Math.min(3, prev + 0.1))}
+                  title="Zoom In"
+                >
+                  <Plus size={15} />
+                </button>
+
+                <button
+                  type="button"
+                  className="crop-ctrl-btn"
+                  onClick={handleRotate}
+                  title="Rotate 90°"
+                >
+                  <RotateCw size={15} />
+                </button>
+
+                <button
+                  type="button"
+                  className="crop-ctrl-btn reset"
+                  onClick={handleReset}
+                  title="Reset"
+                >
+                  리셋
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="crop-modal-footer">
           <button className="secondary-button" onClick={onClose}>취소</button>
-          <button className="primary-button" onClick={handleSave}>자르기 완료</button>
+          <button className="primary-button" onClick={handleSave} disabled={!naturalDimensions}>자르기 완료</button>
         </div>
       </div>
     </div>
