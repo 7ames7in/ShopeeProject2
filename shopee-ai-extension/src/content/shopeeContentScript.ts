@@ -225,6 +225,94 @@ function promptCategorySelection(draft: ProductDraft): FillFieldResult {
   }
 }
 
+function findRecommendedCategories(): { text: string; element: HTMLElement }[] {
+  const headers = Array.from(document.querySelectorAll<HTMLElement>('div, span, p, label'))
+    .filter((el) => {
+      const text = el.textContent?.trim().toLowerCase() ?? ''
+      return text.includes('recommended categories') || text.includes('추천 카테고리')
+    })
+
+  if (headers.length === 0) return []
+
+  const options: { text: string; element: HTMLElement }[] = []
+  
+  for (const header of headers) {
+    let container: HTMLElement | null = header.parentElement
+    for (let i = 0; i < 3 && container; i++) {
+      const textNodes = Array.from(container.querySelectorAll<HTMLElement>('div, span, label, p'))
+        .filter((el) => {
+          const text = el.textContent?.trim() ?? ''
+          return text.includes('>') && text.length > 5 && text.length < 150 && el.children.length === 0
+        })
+
+      if (textNodes.length > 0) {
+        textNodes.forEach((node) => {
+          const clickable = node.closest('div[role="radiogroup"] > div, label, li, [class*="option"], [class*="item"], [class*="radio"]') as HTMLElement ?? node
+          options.push({
+            text: node.textContent?.trim() ?? '',
+            element: clickable
+          })
+        })
+        break
+      }
+      container = container.parentElement
+    }
+  }
+
+  const seen = new Set<string>()
+  return options.filter((opt) => {
+    const key = opt.text
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+async function selectRecommendedCategory(draft: ProductDraft): Promise<FillFieldResult> {
+  const targetCategory = draft.categoryPath?.trim()
+  
+  // 최대 4.5초 대기 (500ms 간격으로 9번 확인)
+  let attempts = 0
+  while (attempts < 9) {
+    await new Promise((resolve) => window.setTimeout(resolve, 500))
+    attempts++
+    
+    const options = findRecommendedCategories()
+    if (options.length > 0) {
+      const normalizePath = (p: string) => p.toLowerCase().replace(/\s+/g, '')
+      const normalizedTarget = normalizePath(targetCategory || '')
+      
+      // 1. AI 예측 카테고리와 정확히 일치하거나 하위 카테고리명이 일치하는 추천 카테고리 검색
+      const matchedOption = options.find(
+        (opt) => normalizePath(opt.text) === normalizedTarget
+      ) ?? options.find(
+        (opt) => opt.text.toLowerCase().includes(targetCategory?.toLowerCase() || 'nevermatch')
+      )
+      
+      if (matchedOption) {
+        matchedOption.element.click()
+        return {
+          field: 'Category',
+          success: true,
+          message: `추천 카테고리 매칭 선택: ${matchedOption.text}`
+        }
+      }
+      
+      // 2. 일치 항목이 없으면 첫 번째 추천 카테고리(Shopee의 탑 추천) 자동 선택
+      const firstOption = options[0]
+      firstOption.element.click()
+      return {
+        field: 'Category',
+        success: true,
+        message: `추천 카테고리 첫 번째 자동 선택: ${firstOption.text}`
+      }
+    }
+  }
+  
+  // 추천 리스트가 끝내 올라오지 않는 경우, 기존 매뉴얼 팝업 트리거
+  return promptCategorySelection(draft)
+}
+
 async function dataUrlToFile(dataUrl: string, fileName: string) {
   const response = await fetch(dataUrl)
   const blob = await response.blob()
@@ -345,18 +433,33 @@ function retryDynamicFields(draft: ProductDraft) {
 }
 
 async function fillShopeeProduct(draft: ProductDraft): Promise<FillResponse> {
-  const dynamicResults = fillDynamicFields(draft)
+  // 1. Product Name을 먼저 입력해야 쇼피에서 추천 카테고리를 로딩하기 시작합니다.
+  const nameResult = fillField('Product Name', draft.productName, fieldKeywords.productName, false, ['name'])
+  
+  // 2. 이미지 및 상품 설명 입력
+  const imageResult = await fillProductImage(draft)
+  const descResult = fillField('Product Description', draft.productDescription, fieldKeywords.productDescription, true, ['description'])
+  
+  // 3. 추천 카테고리 대기 후 선택 (일치 항목 또는 첫 번째 추천 선택)
+  const categoryResult = await selectRecommendedCategory(draft)
+  
+  // 카테고리가 입력되어 활성화되었을 브랜드 및 스펙/동적 필드 입력 시도
   const brandResult = await selectBrand(draft.brand || 'No Brand')
+  const dynamicResults = fillDynamicFields(draft)
+  
   const results = [
-    await fillProductImage(draft),
-    fillField('Product Name', draft.productName, fieldKeywords.productName, false, ['name']),
-    fillField('Product Description', draft.productDescription, fieldKeywords.productDescription, true, ['description']),
+    imageResult,
+    nameResult,
+    descResult,
     brandResult,
-    promptCategorySelection(draft),
+    categoryResult,
     ...dynamicResults,
   ]
+  
+  // 실패한 항목(카테고리 로딩 지연 등으로 활성화가 늦어진 경우) 백그라운드 재시도
   if (dynamicResults.some((result) => !result.success)) retryDynamicFields(draft)
   if (!brandResult.success) retryBrand(draft)
+  
   const successCount = results.filter((result) => result.success).length
   return {
     success: successCount > 0,
