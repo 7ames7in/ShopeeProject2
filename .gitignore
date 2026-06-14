@@ -1,0 +1,6 @@
+node_modules
+dist
+shopee-ai-extension/node_modules
+shopee-ai-extension/dist
+*.local
+.DS_Store

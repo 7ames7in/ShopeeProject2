@@ -1,0 +1,1 @@
+{"root":["./src/api/n8nclient.ts","./src/background/serviceworker.ts","./src/content/shopeecontentscript.ts","./src/popup/popup.tsx","./src/popup/main.tsx","./src/types/productdraft.ts"],"version":"5.6.3"}
