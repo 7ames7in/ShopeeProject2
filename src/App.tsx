@@ -7,13 +7,16 @@ import {
   ChevronRight,
   Clipboard,
   Copy,
+  Crop,
   FileText,
   ImagePlus,
   Images,
   LoaderCircle,
+  Minus,
   Package,
   Plus,
   RefreshCw,
+  RotateCw,
   Sparkles,
   Trash2,
   Weight,
@@ -295,6 +298,43 @@ function App() {
     })
   }
 
+  async function handleCropImage(oldUrl: string, croppedDataUrl: string) {
+    if (!draft) return
+    setError('')
+    try {
+      const res = await fetch(croppedDataUrl)
+      const blob = await res.blob()
+      const file = new File([blob], `cropped-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const newUrl = URL.createObjectURL(file)
+
+      setImages((current) => {
+        const targetIndex = current.findIndex((item) => item.url === oldUrl)
+        if (targetIndex !== -1) {
+          URL.revokeObjectURL(current[targetIndex].url)
+          const updated = [...current]
+          updated[targetIndex] = { file, url: newUrl }
+          return updated
+        }
+        return current
+      })
+
+      const updatedUrls = draft.imageUrls.map((u) => u === oldUrl ? croppedDataUrl : u)
+      setDraft({
+        ...draft,
+        imageUrls: updatedUrls
+      })
+
+      try {
+        await updateDraft(draft.draftId, { imageUrls: updatedUrls })
+      } catch (e) {
+        console.error('Failed to update draft imageUrls after crop:', e)
+      }
+    } catch (e) {
+      console.error('Error handling cropped image:', e)
+      setError('이미지 편집 결과 저장 중 오류가 발생했습니다.')
+    }
+  }
+
   async function handleUpdateDraft(updates: Partial<ProductDraft>) {
     if (!draft) return
     setError('')
@@ -479,6 +519,7 @@ function App() {
             onDelete={handleDeleteDraft}
             onRemoveImage={handleRemoveDraftImage}
             onUpdate={handleUpdateDraft}
+            onCropImage={handleCropImage}
           />
         )}
 
@@ -556,15 +597,17 @@ type ResultProps = {
   onDelete: (id: string) => void
   onRemoveImage: (url: string) => void
   onUpdate: (updates: Partial<ProductDraft>) => Promise<void>
+  onCropImage: (url: string, croppedDataUrl: string) => void
 }
 
-function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset, onDelete, onRemoveImage, onUpdate }: ResultProps) {
+function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset, onDelete, onRemoveImage, onUpdate, onCropImage }: ResultProps) {
   const { product } = draft
   const isUsed = draft.status.toUpperCase().includes('USED')
   const hasQualityIssue = draft.qualityWarnings.length > 0
   const reviewImages = draft.imageUrls.length > 0 ? draft.imageUrls : localImageUrls
 
   const [isEditing, setIsEditing] = useState(false)
+  const [editingImageUrl, setEditingImageUrl] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({
     productName: product.productName,
     category: product.category,
@@ -662,6 +705,14 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
             {reviewImages.map((url, index) => (
               <div key={url} className="result-image-item">
                 <img src={url} alt={`상품 이미지 ${index + 1}`} />
+                <button
+                  type="button"
+                  onClick={() => setEditingImageUrl(url)}
+                  aria-label={`이미지 ${index + 1} 자르기`}
+                  className="result-image-crop"
+                >
+                  <Crop size={12} />
+                </button>
                 <button
                   type="button"
                   onClick={() => onRemoveImage(url)}
@@ -804,6 +855,17 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
           Draft 삭제
         </button>
       </div>
+
+      {editingImageUrl && (
+        <ImageCropModal
+          url={editingImageUrl}
+          onClose={() => setEditingImageUrl(null)}
+          onSave={(croppedDataUrl) => {
+            onCropImage(editingImageUrl, croppedDataUrl)
+            setEditingImageUrl(null)
+          }}
+        />
+      )}
     </section>
   )
 }
@@ -876,6 +938,233 @@ function ListScreen({ drafts, loading, error, onBack, onOpen, onRefresh, onDelet
         </div>
       )}
     </section>
+  )
+}
+
+interface ImageCropModalProps {
+  url: string
+  onClose: () => void
+  onSave: (croppedDataUrl: string) => void
+}
+
+function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [rotation, setRotation] = useState(0)
+  const [naturalDimensions, setNaturalDimensions] = useState<{ width: number; height: number } | null>(null)
+
+  const imageRef = useRef<HTMLImageElement>(null)
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    setNaturalDimensions({
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+    })
+  }
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true)
+    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging) return
+    setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return
+    setIsDragging(true)
+    const touch = e.touches[0]
+    setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y })
+  }
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging || e.touches.length !== 1) return
+    const touch = e.touches[0]
+    setOffset({ x: touch.clientX - dragStart.x, y: touch.clientY - dragStart.y })
+  }
+
+  const handleTouchEnd = () => {
+    setIsDragging(false)
+  }
+
+  const handleRotate = () => {
+    setRotation((prev) => (prev + 90) % 360)
+  }
+
+  const handleReset = () => {
+    setZoom(1)
+    setOffset({ x: 0, y: 0 })
+    setRotation(0)
+  }
+
+  const handleSave = () => {
+    if (!naturalDimensions || !imageRef.current) return
+
+    const canvas = document.createElement('canvas')
+    const cropSize = 600
+    canvas.width = cropSize
+    canvas.height = cropSize
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, cropSize, cropSize)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, cropSize, cropSize)
+
+    ctx.translate(cropSize / 2, cropSize / 2)
+
+    const viewportSize = 300
+    const scaleRatio = cropSize / viewportSize
+
+    ctx.translate(offset.x * scaleRatio, offset.y * scaleRatio)
+    ctx.rotate((rotation * Math.PI) / 180)
+    ctx.scale(zoom, zoom)
+
+    const { width: naturalWidth, height: naturalHeight } = naturalDimensions
+    const f_canvas = Math.min(cropSize / naturalWidth, cropSize / naturalHeight)
+    const W_canvas = naturalWidth * f_canvas
+    const H_canvas = naturalHeight * f_canvas
+
+    try {
+      ctx.drawImage(imageRef.current, -W_canvas / 2, -H_canvas / 2, W_canvas, H_canvas)
+      const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.9)
+      onSave(croppedDataUrl)
+    } catch (e) {
+      console.error('Error drawing image to canvas:', e)
+      alert('이미지를 편집하는 중 오류가 발생했습니다. CORS 제한으로 인해 발생할 수 있습니다.')
+    }
+  }
+
+  return (
+    <div className="crop-modal-overlay">
+      <div className="crop-modal-content">
+        <div className="crop-modal-header">
+          <h3>이미지 편집 / Crop</h3>
+          <button className="crop-close-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div className="crop-modal-body">
+          <div className="crop-workspace-container">
+            <div
+              className="crop-workspace"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              <div className="crop-viewport">
+                <img
+                  ref={imageRef}
+                  src={url}
+                  alt="Cropping workspace"
+                  draggable={false}
+                  onLoad={handleImageLoad}
+                  style={{
+                    transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${zoom})`,
+                    transformOrigin: 'center center',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain',
+                    userSelect: 'none',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </div>
+            </div>
+            <div className="crop-workspace-hint">마우스나 터치로 이미지를 드래그하여 위치를 조정하세요</div>
+          </div>
+
+          <div className="crop-right-panel">
+            <div className="crop-preview-label">미리보기 (1:1)</div>
+            <div className="crop-preview-box">
+              <div className="crop-preview-viewport">
+                <img
+                  src={url}
+                  alt="Cropped Preview"
+                  draggable={false}
+                  style={{
+                    transform: `translate(${offset.x * (120 / 300)}px, ${offset.y * (120 / 300)}px) rotate(${rotation}deg) scale(${zoom})`,
+                    transformOrigin: 'center center',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain',
+                    userSelect: 'none',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="crop-controls-title">확대 및 회전</div>
+            <div className="crop-controls-buttons">
+              <button
+                type="button"
+                className="crop-ctrl-btn"
+                onClick={() => setZoom((prev) => Math.max(1, prev - 0.1))}
+                title="Zoom Out"
+              >
+                <Minus size={15} />
+              </button>
+
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="0.05"
+                className="crop-zoom-slider"
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+              />
+
+              <button
+                type="button"
+                className="crop-ctrl-btn"
+                onClick={() => setZoom((prev) => Math.min(3, prev + 0.1))}
+                title="Zoom In"
+              >
+                <Plus size={15} />
+              </button>
+
+              <button
+                type="button"
+                className="crop-ctrl-btn"
+                onClick={handleRotate}
+                title="Rotate 90°"
+              >
+                <RotateCw size={15} />
+              </button>
+
+              <button
+                type="button"
+                className="crop-ctrl-btn reset"
+                onClick={handleReset}
+                title="Reset"
+              >
+                리셋
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="crop-modal-footer">
+          <button className="secondary-button" onClick={onClose}>취소</button>
+          <button className="primary-button" onClick={handleSave}>자르기 완료</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
