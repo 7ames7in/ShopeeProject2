@@ -288,9 +288,9 @@ async function dataUrlToFile(dataUrl: string, fileName: string) {
 }
 
 async function fillProductImage(draft: ProductDraft): Promise<FillFieldResult> {
-  const imageUrl = draft.imageUrls[0]
-  if (!imageUrl) {
-    return { field: 'Product Image', success: false, message: 'Draft에 imageUrl이 없음' }
+  const imageUrls = draft.imageUrls || []
+  if (imageUrls.length === 0) {
+    return { field: 'Product Image', success: false, message: 'Draft에 imageUrls가 없음' }
   }
 
   const fileInput = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="file"]'))
@@ -302,25 +302,45 @@ async function fillProductImage(draft: ProductDraft): Promise<FillFieldResult> {
   }
 
   try {
-    let dataUrl = imageUrl
-    let fileName = 'shopee-product.jpg'
-    if (!imageUrl.startsWith('data:')) {
-      const response = await chrome.runtime.sendMessage<ExtensionMessage, ImageFetchResponse>({
-        type: 'FETCH_DRAFT_IMAGE',
-        url: imageUrl,
-      })
-      if (!response?.success || !response.dataUrl) throw new Error(response?.message || '이미지 다운로드 실패')
-      dataUrl = response.dataUrl
-      fileName = response.fileName || fileName
+    const transfer = new DataTransfer()
+    const errors: string[] = []
+
+    for (let i = 0; i < imageUrls.length; i++) {
+      const imageUrl = imageUrls[i]
+      try {
+        let dataUrl = imageUrl
+        let fileName = `shopee-product-${i + 1}.jpg`
+        if (!imageUrl.startsWith('data:')) {
+          const response = await chrome.runtime.sendMessage<ExtensionMessage, ImageFetchResponse>({
+            type: 'FETCH_DRAFT_IMAGE',
+            url: imageUrl,
+          })
+          if (!response?.success || !response.dataUrl) {
+            throw new Error(response?.message || '이미지 다운로드 실패')
+          }
+          dataUrl = response.dataUrl
+          fileName = response.fileName || fileName
+        }
+
+        const file = await dataUrlToFile(dataUrl, fileName)
+        transfer.items.add(file)
+      } catch (err) {
+        errors.push(`${i + 1}번째 이미지 실패: ${err instanceof Error ? err.message : '알 수 없음'}`)
+      }
     }
 
-    const file = await dataUrlToFile(dataUrl, fileName)
-    const transfer = new DataTransfer()
-    transfer.items.add(file)
+    if (transfer.files.length === 0) {
+      return { field: 'Product Image', success: false, message: `이미지 다운로드 전체 실패: ${errors.join(', ')}` }
+    }
+
     fileInput.files = transfer.files
     fileInput.dispatchEvent(new Event('input', { bubbles: true }))
     fileInput.dispatchEvent(new Event('change', { bubbles: true }))
-    return { field: 'Product Image', success: true, message: '이미지 업로드 완료' }
+
+    if (errors.length > 0) {
+      return { field: 'Product Image', success: true, message: `일부 이미지 업로드 완료 (${transfer.files.length}/${imageUrls.length}개)` }
+    }
+    return { field: 'Product Image', success: true, message: `이미지 업로드 완료 (${transfer.files.length}개)` }
   } catch (error) {
     return { field: 'Product Image', success: false, message: error instanceof Error ? error.message : '이미지 업로드 실패' }
   }

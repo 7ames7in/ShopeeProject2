@@ -38,6 +38,7 @@ function Popup() {
   const [isShopeePage, setIsShopeePage] = useState(false)
   const [isShopeeTab, setIsShopeeTab] = useState(false)
   const [fillResult, setFillResult] = useState<FillResponse | null>(null)
+  const [selectedImages, setSelectedImages] = useState<string[]>([])
 
   useEffect(() => {
     void initialize()
@@ -92,7 +93,9 @@ function Popup() {
     setError('')
     setFillResult(null)
     try {
-      setSelected(await fetchDraftDetail(draftId, settings))
+      const draftDetail = await fetchDraftDetail(draftId, settings)
+      setSelected(draftDetail)
+      setSelectedImages(draftDetail.imageUrls)
       setView('detail')
     } catch (caught) {
       setError(messageFrom(caught))
@@ -107,11 +110,15 @@ function Popup() {
     setError('')
     setNotice('')
     try {
-      await ensureImagePermission(selected)
+      await ensureImagePermission(selectedImages)
       const tab = await getActiveTab()
+      const payload = {
+        ...selected,
+        imageUrls: selectedImages,
+      }
       const response = await chrome.tabs.sendMessage<ExtensionMessage, FillResponse>(tab.id!, {
         type: 'FILL_SHOPEE_PRODUCT',
-        payload: selected,
+        payload,
       })
       setFillResult(response)
       if (!response.success) setError(response.message)
@@ -123,14 +130,17 @@ function Popup() {
     }
   }
 
-  async function ensureImagePermission(draft: ProductDraft) {
-    const remoteImage = draft.imageUrls.find((url) => /^https?:\/\//.test(url))
-    if (!remoteImage) return
-    const origin = `${new URL(remoteImage).origin}/*`
-    const hasPermission = await chrome.permissions.contains({ origins: [origin] })
-    if (!hasPermission) {
-      const granted = await chrome.permissions.request({ origins: [origin] })
-      if (!granted) throw new Error('이미지 다운로드 권한이 허용되지 않았습니다.')
+  async function ensureImagePermission(selectedUrls: string[]) {
+    const remoteImages = selectedUrls.filter((url) => /^https?:\/\//.test(url))
+    if (remoteImages.length === 0) return
+    const uniqueOrigins = Array.from(new Set(remoteImages.map((url) => new URL(url).origin)))
+    for (const origin of uniqueOrigins) {
+      const originPattern = `${origin}/*`
+      const hasPermission = await chrome.permissions.contains({ origins: [originPattern] })
+      if (!hasPermission) {
+        const granted = await chrome.permissions.request({ origins: [originPattern] })
+        if (!granted) throw new Error('이미지 다운로드 권한이 허용되지 않았습니다.')
+      }
     }
   }
 
@@ -226,12 +236,30 @@ function Popup() {
           </div>
           <div className="detail-card">
             <div className="detail">
-              <span>Product Image {selected.imageUrls.length === 0 && <CircleAlert size={10} />}</span>
+              <span>Product Image ({selectedImages.length}/{selected.imageUrls.length}) {selected.imageUrls.length === 0 && <CircleAlert size={10} />}</span>
               {selected.imageUrls.length > 0 ? (
                 <div className="extension-image-grid">
-                  {selected.imageUrls.map((url, index) => (
-                    <img key={url} src={url} alt={`상품 이미지 ${index + 1}`} />
-                  ))}
+                  {selected.imageUrls.map((url, index) => {
+                    const isImgSelected = selectedImages.includes(url)
+                    return (
+                      <div
+                        key={url}
+                        className={`extension-image-item ${isImgSelected ? 'selected' : ''}`}
+                        onClick={() => {
+                          setSelectedImages((current) =>
+                            current.includes(url)
+                              ? current.filter((u) => u !== url)
+                              : [...current, url]
+                          )
+                        }}
+                      >
+                        <img src={url} alt={`상품 이미지 ${index + 1}`} />
+                        <div className="checkbox-indicator">
+                          {isImgSelected ? <Check size={10} strokeWidth={3} /> : null}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
                 <p>이미지 URL 없음 · n8n 저장 설정 필요</p>
