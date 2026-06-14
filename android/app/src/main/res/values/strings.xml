@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Shopee AI Draft Creator</string>
+    <string name="title_activity_main">Shopee AI Draft Creator</string>
+    <string name="package_name">com.shopee.ai.draftcreator</string>
+    <string name="custom_url_scheme">com.shopee.ai.draftcreator</string>
+</resources>
