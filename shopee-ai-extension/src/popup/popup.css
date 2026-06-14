@@ -70,3 +70,19 @@ h1 { margin: 3px 0 0; font-size: 20px; line-height: 1.2; letter-spacing: -.04em;
 .settings-form input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(238,77,45,.08); }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.extension-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+.extension-image-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #f4efec;
+  border: 1px solid var(--line);
+}
+

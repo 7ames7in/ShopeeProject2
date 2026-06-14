@@ -225,11 +225,18 @@ function Popup() {
             <div><span>Selected Draft</span><h1>{selected.productName || '이름 없는 상품'}</h1></div>
           </div>
           <div className="detail-card">
-            <Detail
-              label="Product Image"
-              value={selected.imageUrls.length > 0 ? `${selected.imageUrls.length}개 이미지 자동 업로드 가능` : '이미지 URL 없음 · n8n 저장 설정 필요'}
-              warning={selected.imageUrls.length === 0}
-            />
+            <div className="detail">
+              <span>Product Image {selected.imageUrls.length === 0 && <CircleAlert size={10} />}</span>
+              {selected.imageUrls.length > 0 ? (
+                <div className="extension-image-grid">
+                  {selected.imageUrls.map((url, index) => (
+                    <img key={url} src={url} alt={`상품 이미지 ${index + 1}`} />
+                  ))}
+                </div>
+              ) : (
+                <p>이미지 URL 없음 · n8n 저장 설정 필요</p>
+              )}
+            </div>
             <Detail label="Category (직접 선택)" value={selected.categoryPath} warning />
             <div className="detail-grid">
               <Detail label="Brand (자동 선택)" value={selected.brand || 'No Brand'} />
