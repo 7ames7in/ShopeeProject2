@@ -27,6 +27,7 @@ export type ProductDraft = {
 
 export type CreateDraftInput = {
   images: File[]
+  brand: string
   price: string
   currency: Currency
   weight: string

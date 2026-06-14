@@ -98,6 +98,12 @@ h1, h2, p { margin: 0; }
 
 .input-section { display: grid; gap: 16px; padding: 20px; border: 1px solid var(--line); border-radius: 22px; background: #fff; box-shadow: 0 8px 30px rgba(50, 36, 29, .04); }
 .input-section label > span { display: block; font-size: 12px; font-weight: 700; margin-bottom: 8px; color: #5c544f; }
+.input-section .brand-input { width: 100%; height: 52px; border: 1px solid #e5ded9; border-radius: 13px; outline: 0; background: #fbfaf9; padding: 0 13px; color: var(--ink); font-weight: 600; transition: border-color .2s, box-shadow .2s; }
+.input-section .brand-input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(238, 77, 45, .09); background: #fff; }
+.input-section label > .field-help { margin: 7px 0 0; color: #a29a96; font-size: 9px; font-weight: 500; }
+.input-section label > .brand-choices { margin: 9px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.brand-choices button { max-width: 100%; overflow: hidden; padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: #716762; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.brand-choices button.selected { border-color: #f1b5a7; background: #fff0eb; color: var(--orange-dark); }
 .input-row { height: 52px; border: 1px solid #e5ded9; border-radius: 13px; display: flex; align-items: center; overflow: hidden; background: #fbfaf9; transition: border-color .2s, box-shadow .2s; }
 .input-row:focus-within { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(238, 77, 45, .09); background: #fff; }
 .input-icon { width: 45px; display: grid; place-items: center; color: var(--orange); font-weight: 700; border-right: 1px solid #eee8e4; }

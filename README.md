@@ -1,6 +1,6 @@
 # Shopee AI Draft Creator
 
-모바일에서 상품 사진, 가격, 무게를 입력해 n8n으로 전송하고 AI가 생성한 Shopee 상품 Draft를 확인하는 웹앱입니다.
+모바일에서 상품 사진, 브랜드, 가격, 무게를 입력해 n8n으로 전송하고 AI가 생성한 Shopee 상품 Draft를 확인하는 웹앱입니다.
 
 ## 실행 방법
 
@@ -33,6 +33,8 @@ npm run preview -- --host 0.0.0.0
 - `GET /webhook/shopee/product-draft/list`
 - `GET /webhook/shopee/product-draft/detail?draftId=...`
 - `POST /webhook/shopee/product-draft/mark-used`
+
+Create 요청에는 사용자가 선택한 `brand`가 포함됩니다. n8n 생성 워크플로는 이 값을 Draft의 Brand로 PostgreSQL에 저장해야 Chrome Extension에서 자동 선택할 수 있습니다.
 
 ## Chrome Extension
 

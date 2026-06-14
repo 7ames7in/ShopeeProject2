@@ -115,7 +115,7 @@ function Popup() {
       })
       setFillResult(response)
       if (!response.success) setError(response.message)
-      else setNotice('먼저 카테고리를 직접 선택하세요. 하단 영역이 열리면 가격, 무게, 재고, 배송일을 자동으로 다시 입력합니다.')
+      else setNotice('먼저 카테고리를 직접 선택하세요. Brand와 하단 필드가 열리면 자동 입력을 다시 시도합니다.')
     } catch {
       setError('Shopee Seller Center 탭을 열고 페이지를 새로고침한 후 다시 시도해 주세요.')
     } finally {
@@ -232,7 +232,7 @@ function Popup() {
             />
             <Detail label="Category (직접 선택)" value={selected.categoryPath} warning />
             <div className="detail-grid">
-              <Detail label="Brand (직접 선택)" value={selected.brand} warning />
+              <Detail label="Brand (자동 선택)" value={selected.brand || 'No Brand'} />
               <Detail label="Condition" value={selected.condition} />
               <Detail label="Price" value={`${selected.currency} ${selected.globalSkuPrice}`} />
               <Detail label="Weight" value={`${selected.weight} ${selected.weightUnit}`} />

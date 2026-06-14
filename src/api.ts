@@ -85,6 +85,7 @@ export async function createDraft(input: CreateDraftInput): Promise<ProductDraft
   formData.append('image', input.images[0])
   input.images.forEach((image) => formData.append('images', image))
   formData.append('imageCount', String(input.images.length))
+  formData.append('brand', input.brand || 'No Brand')
   formData.append('price', input.price)
   formData.append('currency', input.currency)
   formData.append('weight', input.weight)

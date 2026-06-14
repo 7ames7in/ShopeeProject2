@@ -5,6 +5,7 @@ type FormControl = HTMLInputElement | HTMLTextAreaElement | HTMLElement
 const fieldKeywords = {
   productName: ['product name', 'global product name', '상품명', 'ชื่อสินค้า', 'nama produk'],
   category: ['category', '카테고리', 'หมวดหมู่', 'kategori'],
+  brand: ['brand', '브랜드', 'ยี่ห้อ', 'merek'],
   productDescription: ['product description', 'description', '상세 설명', 'คำอธิบายสินค้า', 'deskripsi produk'],
   globalSkuPrice: ['global sku price', 'price', '판매가', '가격', 'harga'],
   weight: ['weight', '무게', 'น้ำหนัก', 'berat'],
@@ -101,7 +102,19 @@ function findControl(keywords: string[], preferTextarea = false, stableIds: stri
   return ranked[0]?.control ?? findControlNearLabel(keywords, preferTextarea)
 }
 
-function setControlValue(control: FormControl, value: string) {
+function dispatchEnter(control: FormControl) {
+  const eventInit: KeyboardEventInit = {
+    key: 'Enter',
+    code: 'Enter',
+    bubbles: true,
+    cancelable: true,
+  }
+  control.dispatchEvent(new KeyboardEvent('keydown', eventInit))
+  control.dispatchEvent(new KeyboardEvent('keypress', eventInit))
+  control.dispatchEvent(new KeyboardEvent('keyup', eventInit))
+}
+
+function setControlValue(control: FormControl, value: string, commitWithEnter = false) {
   control.scrollIntoView({ behavior: 'smooth', block: 'center' })
   control.focus()
 
@@ -119,18 +132,72 @@ function setControlValue(control: FormControl, value: string) {
 
   control.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }))
   control.dispatchEvent(new Event('change', { bubbles: true }))
-  control.dispatchEvent(new Event('blur', { bubbles: true }))
+  if (commitWithEnter) dispatchEnter(control)
+  control.blur()
 }
 
-function fillField(field: string, value: string, keywords: string[], preferTextarea = false, stableIds: string[] = []): FillFieldResult {
+function fillField(field: string, value: string, keywords: string[], preferTextarea = false, stableIds: string[] = [], commitWithEnter = false): FillFieldResult {
   const control = findControl(keywords, preferTextarea, stableIds)
   if (!control) return { field, success: false, message: '입력칸을 찾지 못함' }
   try {
-    setControlValue(control, value)
+    setControlValue(control, value, commitWithEnter)
     control.dataset.shopeeAiDraftFilled = 'true'
-    return { field, success: true, message: '입력 완료' }
+    return { field, success: true, message: commitWithEnter ? '입력 후 Enter 완료' : '입력 완료' }
   } catch (error) {
     return { field, success: false, message: error instanceof Error ? error.message : '입력 실패' }
+  }
+}
+
+function findSelectionTrigger(keywords: string[]): HTMLElement | null {
+  const normalizedKeywords = keywords.map(normalizeText)
+  const labels = Array.from(document.querySelectorAll<HTMLElement>('label, div, span'))
+    .filter((element) => {
+      const text = normalizeText(element.textContent)
+      return text.length > 0 && text.length < 40 && normalizedKeywords.some((keyword) => text === keyword || text === `* ${keyword}`)
+    })
+
+  for (const label of labels) {
+    let container: HTMLElement | null = label.parentElement
+    for (let depth = 0; depth < 4 && container; depth += 1, container = container.parentElement) {
+      const explicit = Array.from(container.querySelectorAll<HTMLElement>(
+        'input:not([type="hidden"]), button, [role="combobox"], [aria-haspopup="listbox"], [class*="select"]',
+      )).filter((element) => element !== label && isVisible(element))
+      const placeholder = explicit.find((element) => {
+        const text = normalizeText((element as HTMLInputElement).placeholder ?? element.textContent)
+        return text.includes('please select') || text.includes('no brand')
+      })
+      if (placeholder) return placeholder
+      if (explicit.length === 1) return explicit[0]
+    }
+  }
+  return null
+}
+
+function findVisibleOption(value: string): HTMLElement | null {
+  const target = normalizeText(value)
+  return Array.from(document.querySelectorAll<HTMLElement>(
+    '[role="option"], li, [class*="option"], [class*="menu-item"], [class*="select-item"]',
+  )).find((element) => isVisible(element) && normalizeText(element.textContent) === target) ?? null
+}
+
+async function selectBrand(brand: string): Promise<FillFieldResult> {
+  const value = brand.trim() || 'No Brand'
+  const trigger = findSelectionTrigger(fieldKeywords.brand)
+  if (!trigger) return { field: 'Brand', success: false, message: 'Brand 선택 영역을 찾지 못함' }
+
+  try {
+    trigger.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    trigger.click()
+    await new Promise((resolve) => window.setTimeout(resolve, 350))
+    const option = findVisibleOption(value)
+    if (!option) {
+      document.body.click()
+      return { field: 'Brand', success: false, message: `${value} 옵션을 찾지 못함` }
+    }
+    option.click()
+    return { field: 'Brand', success: true, message: `${value} 선택 완료` }
+  } catch (error) {
+    return { field: 'Brand', success: false, message: error instanceof Error ? error.message : 'Brand 선택 실패' }
   }
 }
 
@@ -205,11 +272,30 @@ async function fillProductImage(draft: ProductDraft): Promise<FillFieldResult> {
 
 function fillDynamicFields(draft: ProductDraft): FillFieldResult[] {
   return [
-    fillField('Global SKU Price', draft.globalSkuPrice, fieldKeywords.globalSkuPrice, false, ['globalSkuPrice', 'global_sku_price', 'price']),
+    fillField('Global SKU Price', draft.globalSkuPrice, fieldKeywords.globalSkuPrice, false, ['globalSkuPrice', 'global_sku_price', 'price'], true),
     fillField('Weight', String(draft.weight), fieldKeywords.weight, false, ['weight']),
     fillField('Stock', String(draft.stock || 1), fieldKeywords.stock, false, ['stock']),
     fillField('Days to ship', String(draft.daysToShip || 1), fieldKeywords.daysToShip, false, ['daysToShip', 'days_to_ship']),
   ]
+}
+
+function retryBrand(draft: ProductDraft) {
+  let attempts = 0
+  let selecting = false
+  const timer = window.setInterval(async () => {
+    if (selecting) return
+    attempts += 1
+    selecting = true
+    const result = await selectBrand(draft.brand || 'No Brand')
+    selecting = false
+    if (result.success) {
+      window.clearInterval(timer)
+      showPageStatus(`${draft.brand || 'No Brand'} Brand 자동 선택을 완료했습니다.`, true)
+    } else if (attempts >= 40) {
+      window.clearInterval(timer)
+      showPageStatus(`Brand에서 ${draft.brand || 'No Brand'}를 직접 선택해 주세요.`)
+    }
+  }, 1500)
 }
 
 function showPageStatus(message: string, complete = false) {
@@ -260,14 +346,17 @@ function retryDynamicFields(draft: ProductDraft) {
 
 async function fillShopeeProduct(draft: ProductDraft): Promise<FillResponse> {
   const dynamicResults = fillDynamicFields(draft)
+  const brandResult = await selectBrand(draft.brand || 'No Brand')
   const results = [
     await fillProductImage(draft),
     fillField('Product Name', draft.productName, fieldKeywords.productName, false, ['name']),
     fillField('Product Description', draft.productDescription, fieldKeywords.productDescription, true, ['description']),
+    brandResult,
     promptCategorySelection(draft),
     ...dynamicResults,
   ]
   if (dynamicResults.some((result) => !result.success)) retryDynamicFields(draft)
+  if (!brandResult.success) retryBrand(draft)
   const successCount = results.filter((result) => result.success).length
   return {
     success: successCount > 0,

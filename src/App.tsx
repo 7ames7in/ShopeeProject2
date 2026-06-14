@@ -24,6 +24,7 @@ import type { CreateDraftInput, Currency, ProductDraft, WeightUnit } from './typ
 type Screen = 'create' | 'loading' | 'result' | 'list'
 
 const currencies: Currency[] = ['USD', 'KRW', 'SGD', 'MYR', 'PHP', 'THB', 'VND', 'IDR']
+const recentBrandsStorageKey = 'shopee-draft-recent-brands'
 const loadingSteps = [
   '이미지 업로드 중',
   '상품 Draft 생성 중',
@@ -33,6 +34,7 @@ const loadingSteps = [
 ]
 
 const initialForm = {
+  brand: 'No Brand',
   price: '',
   currency: 'USD' as Currency,
   weight: '',
@@ -93,6 +95,16 @@ async function compressImage(file: File, maxSizeBytes: number = 2 * 1024 * 1024)
 function App() {
   const [screen, setScreen] = useState<Screen>('create')
   const [form, setForm] = useState(initialForm)
+  const [recentBrands, setRecentBrands] = useState<string[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(recentBrandsStorageKey) ?? '[]') as unknown
+      return Array.isArray(stored)
+        ? ['No Brand', ...stored.filter((brand): brand is string => typeof brand === 'string' && brand !== 'No Brand')].slice(0, 8)
+        : ['No Brand']
+    } catch {
+      return ['No Brand']
+    }
+  })
   const [images, setImages] = useState<Array<{ file: File; url: string }>>([])
   const [error, setError] = useState('')
   const [draft, setDraft] = useState<ProductDraft | null>(null)
@@ -161,7 +173,15 @@ function App() {
     setLoadingStep(0)
     setScreen('loading')
     try {
-      const result = await createDraft({ ...form, images: images.map((item) => item.file) } as CreateDraftInput)
+      const selectedBrand = form.brand.trim() || 'No Brand'
+      const nextRecentBrands = [selectedBrand, ...recentBrands.filter((brand) => brand !== selectedBrand)].slice(0, 8)
+      setRecentBrands(nextRecentBrands)
+      try {
+        localStorage.setItem(recentBrandsStorageKey, JSON.stringify(nextRecentBrands))
+      } catch {
+        // Draft creation should still work when browser storage is unavailable.
+      }
+      const result = await createDraft({ ...form, brand: selectedBrand, images: images.map((item) => item.file) } as CreateDraftInput)
       setDraft(result)
       setScreen('result')
     } catch (caught) {
@@ -295,6 +315,30 @@ function App() {
               )}
 
               <div className="input-section">
+                <label>
+                  <span>Brand</span>
+                  <input
+                    className="brand-input"
+                    type="text"
+                    placeholder="No Brand 또는 자주 쓰는 브랜드"
+                    value={form.brand}
+                    onChange={(event) => setForm({ ...form, brand: event.target.value })}
+                  />
+                  <span className="field-help">Shopee Brand에서 자동 선택을 시도합니다.</span>
+                  <span className="brand-choices">
+                    {recentBrands.map((brand) => (
+                      <button
+                        key={brand}
+                        type="button"
+                        className={form.brand === brand ? 'selected' : ''}
+                        onClick={() => setForm({ ...form, brand })}
+                      >
+                        {brand}
+                      </button>
+                    ))}
+                  </span>
+                </label>
+
                 <label>
                   <span>Global SKU Price</span>
                   <div className="input-row">
