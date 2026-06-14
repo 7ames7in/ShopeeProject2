@@ -155,7 +155,7 @@ function findSelectionTrigger(keywords: string[]): HTMLElement | null {
     const text = el.textContent ?? ''
     return keywords.some((keyword) => text.toLowerCase().includes(keyword.toLowerCase()))
   })
-  
+
   if (matchingLabel) {
     const editRow = matchingLabel.closest('.edit-row')
     if (editRow) {
@@ -184,7 +184,7 @@ function findSelectionTrigger(keywords: string[]): HTMLElement | null {
       )).filter((element) => element !== label && isVisible(element))
       const placeholder = explicit.find((element) => {
         const text = normalizeText((element as HTMLInputElement).placeholder ?? element.textContent)
-        return text.includes('please select') || text.includes('no brand')
+        return text.includes('please select') || text.includes('No brand')
       })
       if (placeholder) return placeholder
       if (explicit.length === 1) return explicit[0]
@@ -201,36 +201,42 @@ function findVisibleOption(value: string): HTMLElement | null {
 }
 
 async function selectBrand(brand: string): Promise<FillFieldResult> {
-  const value = brand.trim() || 'No Brand'
+  const value = brand.trim() || 'No brand'
+  
+  // No Brand 자동 셋팅 기능 해제 요구사항 반영
+  if (!value || value.toLowerCase() === 'no brand') {
+    return { field: 'Brand', success: true, message: 'No Brand 자동 설정 해제됨' }
+  }
+
   const trigger = findSelectionTrigger(fieldKeywords.brand)
   if (!trigger) return { field: 'Brand', success: false, message: 'Brand 선택 영역을 찾지 못함' }
 
   try {
     trigger.scrollIntoView({ behavior: 'smooth', block: 'center' })
     trigger.click()
-    
+
     // 드롭다운 패널 열릴 때까지 500ms 대기
     await new Promise((resolve) => window.setTimeout(resolve, 500))
-    
+
     // 드롭다운 내부에 있는 검색 인풋 찾기 (Product Name 등 페이지 내 타 입력창과 섞이지 않도록 드롭다운 내부로 한정)
     const searchInput = Array.from(document.querySelectorAll<HTMLInputElement>(
       '.el-select-dropdown input, .el-popper input, [role="listbox"] input, [class*="dropdown"] input, [class*="popper"] input'
     )).find((el) => isVisible(el))
-      
+
     if (searchInput) {
       // 검색창 포커싱 및 텍스트 타이핑
       searchInput.focus()
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
       if (setter) setter.call(searchInput, value)
       else searchInput.value = value
-      
+
       searchInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }))
       searchInput.dispatchEvent(new Event('change', { bubbles: true }))
-      
+
       // 검색 필터링 렌더링을 위해 800ms 대기
       await new Promise((resolve) => window.setTimeout(resolve, 800))
     }
-    
+
     const option = findVisibleOption(value)
     if (!option) {
       document.body.click() // 드롭다운 닫기
@@ -416,14 +422,14 @@ function retryBrand(draft: ProductDraft) {
     if (selecting) return
     attempts += 1
     selecting = true
-    const result = await selectBrand(draft.brand || 'No Brand')
+    const result = await selectBrand(draft.brand || 'No brand')
     selecting = false
     if (result.success) {
       window.clearInterval(timer)
-      showPageStatus(`${draft.brand || 'No Brand'} Brand 자동 선택을 완료했습니다.`, true)
+      showPageStatus(`${draft.brand || 'No brand'} Brand 자동 선택을 완료했습니다.`, true)
     } else if (attempts >= 40) {
       window.clearInterval(timer)
-      showPageStatus(`Brand에서 ${draft.brand || 'No Brand'}를 직접 선택해 주세요.`)
+      showPageStatus(`Brand에서 ${draft.brand || 'No brand'}를 직접 선택해 주세요.`)
     }
   }, 1500)
 }
@@ -486,7 +492,7 @@ async function fillShopeeProduct(draft: ProductDraft): Promise<FillResponse> {
   const categoryResult = await selectRecommendedCategory(draft)
 
   // 카테고리가 입력되어 활성화되었을 브랜드 및 스펙/동적 필드 입력 시도
-  const brandResult = await selectBrand(draft.brand || 'No Brand')
+  const brandResult = await selectBrand(draft.brand || 'No brand')
   const dynamicResults = fillDynamicFields(draft)
 
   const results = [

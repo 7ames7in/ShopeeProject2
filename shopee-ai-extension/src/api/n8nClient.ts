@@ -61,7 +61,7 @@ export function normalizeDraft(value: unknown): ProductDraft {
     createdAt: String(raw.createdAt ?? raw.created_at ?? source.createdAt ?? source.created_at ?? ''),
     productName,
     categoryPath,
-    brand: String(source.brand ?? 'No Brand'),
+    brand: String(source.brand ?? 'No brand'),
     productDescription,
     shortDescription: String(source.shortDescription ?? source.short_description ?? ''),
     globalSkuPrice: String(source.globalSkuPrice ?? source.global_sku_price ?? source.price ?? ''),

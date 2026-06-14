@@ -239,7 +239,7 @@ function Popup() {
             </div>
             <Detail label="Category (직접 선택)" value={selected.categoryPath} warning />
             <div className="detail-grid">
-              <Detail label="Brand (자동 선택)" value={selected.brand || 'No Brand'} />
+              <Detail label="Brand (자동 선택)" value={selected.brand || 'No brand'} />
               <Detail label="Condition" value={selected.condition} />
               <Detail label="Price" value={`${selected.currency} ${selected.globalSkuPrice}`} />
               <Detail label="Weight" value={`${selected.weight} ${selected.weightUnit}`} />

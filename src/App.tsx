@@ -35,7 +35,7 @@ const loadingSteps = [
 ]
 
 const initialForm = {
-  brand: 'No Brand',
+  brand: 'No brand',
   price: '',
   currency: 'USD' as Currency,
   weight: '',
@@ -51,7 +51,7 @@ async function compressImage(file: File, maxSizeBytes: number = 2 * 1024 * 1024)
         const canvas = document.createElement('canvas')
         let width = img.width
         let height = img.height
-        
+
         // リサイズ: 最大幅1920px
         if (width > 1920) {
           const ratio = 1920 / width
@@ -72,7 +72,7 @@ async function compressImage(file: File, maxSizeBytes: number = 2 * 1024 * 1024)
               reject(new Error('이미지 압축 실패'))
               return
             }
-            
+
             if (blob.size <= maxSizeBytes || quality <= 0.05) {
               const compressedFile = new File([blob], file.name, { type: 'image/jpeg' })
               resolve(compressedFile)
@@ -82,7 +82,7 @@ async function compressImage(file: File, maxSizeBytes: number = 2 * 1024 * 1024)
             }
           }, 'image/jpeg', quality)
         }
-        
+
         compress()
       }
       img.onerror = () => reject(new Error('이미지를 로드할 수 없습니다.'))
@@ -100,10 +100,10 @@ function App() {
     try {
       const stored = JSON.parse(localStorage.getItem(recentBrandsStorageKey) ?? '[]') as unknown
       return Array.isArray(stored)
-        ? ['No Brand', ...stored.filter((brand): brand is string => typeof brand === 'string' && brand !== 'No Brand')].slice(0, 8)
-        : ['No Brand']
+        ? ['No brand', ...stored.filter((brand): brand is string => typeof brand === 'string' && brand !== 'No brand')].slice(0, 8)
+        : ['No brand']
     } catch {
-      return ['No Brand']
+      return ['No brand']
     }
   })
   const [images, setImages] = useState<Array<{ file: File; url: string }>>([])
@@ -131,7 +131,7 @@ function App() {
     if (valid.length !== selected.length) setError('JPG, PNG, WEBP 형식의 5MB 이하 이미지만 추가됩니다.')
     const available = Math.max(0, 9 - images.length)
     const additions = valid.slice(0, available)
-    
+
     // 이미지 압축 및 미리보기 추가
     Promise.all(additions.map((file) => compressImage(file)))
       .then((compressedFiles) => {
@@ -143,7 +143,7 @@ function App() {
       .catch(() => {
         setError('이미지 압축 중 오류가 발생했습니다.')
       })
-    
+
     event.target.value = ''
   }
 
@@ -174,7 +174,7 @@ function App() {
     setLoadingStep(0)
     setScreen('loading')
     try {
-      const selectedBrand = form.brand.trim() || 'No Brand'
+      const selectedBrand = form.brand.trim() || 'No brand'
       const nextRecentBrands = [selectedBrand, ...recentBrands.filter((brand) => brand !== selectedBrand)].slice(0, 8)
       setRecentBrands(nextRecentBrands)
       try {
@@ -345,7 +345,7 @@ function App() {
                   <input
                     className="brand-input"
                     type="text"
-                    placeholder="No Brand 또는 자주 쓰는 브랜드"
+                    placeholder="No brand 또는 자주 쓰는 브랜드"
                     value={form.brand}
                     onChange={(event) => setForm({ ...form, brand: event.target.value })}
                   />
