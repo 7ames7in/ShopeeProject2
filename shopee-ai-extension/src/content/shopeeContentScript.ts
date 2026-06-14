@@ -270,6 +270,7 @@ function clickCategoryCancelButton(): boolean {
 
   if (cancelButton) {
     cancelButton.click()
+    showPageStatus('카테고리 선택 창을 닫았습니다.', true)
     return true
   }
   return false
