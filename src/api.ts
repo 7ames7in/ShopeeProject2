@@ -141,3 +141,13 @@ export async function markDraftUsed(draftId: string): Promise<void> {
   })
   await parseResponse(response)
 }
+
+export async function deleteDraft(draftId: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ draftId }),
+  })
+  await parseResponse(response)
+}
+

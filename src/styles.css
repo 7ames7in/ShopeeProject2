@@ -191,6 +191,81 @@ h1, h2, p { margin: 0; }
 .draft-summary em.warning { background: #fff0df; color: #a66a2e; }
 .draft-list-item > svg { flex: 0 0 auto; align-self: center; color: #b7afab; }
 
+.draft-list-wrapper {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+.draft-list-wrapper .draft-list-item {
+  flex: 1;
+  min-width: 0;
+}
+.list-delete-button {
+  flex: 0 0 48px;
+  width: 48px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  color: #c5867c;
+  display: grid;
+  place-items: center;
+  transition: all .2s;
+}
+.list-delete-button:hover, .list-delete-button:active {
+  background: #fff1ed;
+  border-color: #ffddd5;
+  color: #a53722;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+.detail-header .back-button {
+  margin-bottom: 0;
+}
+.detail-delete-button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #a29a96;
+  border-radius: 9px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.detail-delete-button:hover, .detail-delete-button:active {
+  background: #fff1ed;
+  border-color: #ffddd5;
+  color: #a53722;
+}
+
+.danger-button {
+  grid-column: span 2;
+  min-height: 54px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 14px;
+  border: 1px solid #ffddd5;
+  background: #fff1ed;
+  color: #a53722;
+  transition: all .2s;
+}
+.danger-button:active {
+  background: #ffdcd3;
+}
+
 @keyframes scan { 0%, 100% { top: 16px; } 50% { top: 152px; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes dots { 0% { width: 0; } 100% { width: 15px; } }

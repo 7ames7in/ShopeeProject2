@@ -15,10 +15,11 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  Trash2,
   Weight,
   X,
 } from 'lucide-react'
-import { createDraft, getDraft, listDrafts, markDraftUsed } from './api'
+import { createDraft, deleteDraft, getDraft, listDrafts, markDraftUsed } from './api'
 import type { CreateDraftInput, Currency, ProductDraft, WeightUnit } from './types'
 
 type Screen = 'create' | 'loading' | 'result' | 'list'
@@ -246,6 +247,30 @@ function App() {
     }
   }
 
+  async function handleDeleteDraft(draftId: string, event?: React.MouseEvent) {
+    if (event) {
+      event.stopPropagation()
+    }
+    if (!window.confirm('정말 이 Draft를 삭제하시겠습니까?')) return
+
+    setError('')
+    try {
+      await deleteDraft(draftId)
+      setDrafts((current) => current.filter((d) => d.draftId !== draftId))
+      if (draft?.draftId === draftId) {
+        reset()
+      }
+    } catch (caught) {
+      console.error(caught)
+      setError(caught instanceof Error ? caught.message : '삭제에 실패했습니다. 다시 시도해 주세요.')
+      // UI 즉시 반영을 위한 폴백 처리
+      setDrafts((current) => current.filter((d) => d.draftId !== draftId))
+      if (draft?.draftId === draftId) {
+        reset()
+      }
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -410,6 +435,7 @@ function App() {
             onCopy={copyText}
             onMarkUsed={markUsed}
             onReset={reset}
+            onDelete={handleDeleteDraft}
           />
         )}
 
@@ -421,6 +447,7 @@ function App() {
             onBack={reset}
             onOpen={openDraft}
             onRefresh={loadDrafts}
+            onDelete={handleDeleteDraft}
           />
         )}
       </main>
@@ -471,16 +498,23 @@ type ResultProps = {
   onCopy: (text: string, label: string) => void
   onMarkUsed: () => void
   onReset: () => void
+  onDelete: (id: string) => void
 }
 
-function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset }: ResultProps) {
+function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset, onDelete }: ResultProps) {
   const { product } = draft
   const isUsed = draft.status.toUpperCase().includes('USED')
   const hasQualityIssue = draft.qualityWarnings.length > 0
   const reviewImages = draft.imageUrls.length > 0 ? draft.imageUrls : localImageUrls
   return (
     <section className="screen result-screen">
-      <button className="back-button" onClick={onBack}><ArrowLeft size={18} /> Draft 목록</button>
+      <div className="detail-header">
+        <button className="back-button" onClick={onBack}><ArrowLeft size={18} /> Draft 목록</button>
+        <button className="detail-delete-button" onClick={() => onDelete(draft.draftId)} aria-label="Draft 삭제">
+          <Trash2 size={16} />
+          삭제
+        </button>
+      </div>
       <div className="success-heading">
         <span className={`success-icon ${hasQualityIssue ? 'warning' : ''}`}>{hasQualityIssue ? <AlertTriangle size={29} /> : <CheckCircle2 size={29} />}</span>
         <div>
@@ -559,6 +593,10 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
           {markingUsed ? <LoaderCircle size={18} className="spin" /> : <CheckCircle2 size={18} />}
           {isUsed ? '사용 완료됨' : hasQualityIssue ? 'AI 결과 확인 필요' : '사용 완료 표시'}
         </button>
+        <button className="danger-button" onClick={() => onDelete(draft.draftId)} aria-label="Draft 삭제">
+          <Trash2 size={18} />
+          Draft 삭제
+        </button>
       </div>
     </section>
   )
@@ -574,13 +612,14 @@ function ResultField({ label, value, long, onCopy, copied }: { label: string; va
   )
 }
 
-function ListScreen({ drafts, loading, error, onBack, onOpen, onRefresh }: {
+function ListScreen({ drafts, loading, error, onBack, onOpen, onRefresh, onDelete }: {
   drafts: ProductDraft[]
   loading: boolean
   error: string
   onBack: () => void
   onOpen: (id: string) => void
   onRefresh: () => void
+  onDelete: (id: string, event: React.MouseEvent) => void
 }) {
   return (
     <section className="screen list-screen">
@@ -607,17 +646,26 @@ function ListScreen({ drafts, loading, error, onBack, onOpen, onRefresh }: {
       ) : (
         <div className="draft-list">
           {drafts.map((item) => (
-            <button key={item.draftId} className="draft-list-item" onClick={() => onOpen(item.draftId)}>
-              <span className="draft-thumb"><Package size={22} /></span>
-              <span className="draft-summary">
-                <strong>{item.product.productName || '이름 없는 상품'}</strong>
-                <small>{item.product.currency} {item.product.globalSkuPrice} · {item.product.weight} {item.product.weightUnit}</small>
-                <em className={item.qualityWarnings.length ? 'warning' : item.status.toUpperCase().includes('USED') ? 'used' : ''}>
-                  {item.qualityWarnings.length ? 'AI 결과 확인 필요' : item.status}
-                </em>
-              </span>
-              <ChevronRight size={19} />
-            </button>
+            <div key={item.draftId} className="draft-list-wrapper">
+              <button className="draft-list-item" onClick={() => onOpen(item.draftId)}>
+                <span className="draft-thumb"><Package size={22} /></span>
+                <span className="draft-summary">
+                  <strong>{item.product.productName || '이름 없는 상품'}</strong>
+                  <small>{item.product.currency} {item.product.globalSkuPrice} · {item.product.weight} {item.product.weightUnit}</small>
+                  <em className={item.qualityWarnings.length ? 'warning' : item.status.toUpperCase().includes('USED') ? 'used' : ''}>
+                    {item.qualityWarnings.length ? 'AI 결과 확인 필요' : item.status}
+                  </em>
+                </span>
+                <ChevronRight size={19} />
+              </button>
+              <button
+                className="list-delete-button"
+                onClick={(e) => onDelete(item.draftId, e)}
+                aria-label="Draft 삭제"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           ))}
         </div>
       )}
