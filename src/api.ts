@@ -82,8 +82,22 @@ function normalizeDraft(value: unknown): ProductDraft {
 
 export async function createDraft(input: CreateDraftInput): Promise<ProductDraft> {
   const formData = new FormData()
-  formData.append('image', input.images[0])
-  input.images.forEach((image) => formData.append('images', image))
+  
+  // 모바일 기기(iOS/안드로이드)에서 여러 장 업로드 시 파일명이 모두 "image.jpg" 등으로 동일하여
+  // n8n이나 멀티파트 파서가 덮어쓰기하는 문제를 방지하기 위해 고유 파일명 부여
+  if (input.images.length > 0) {
+    const coverImage = input.images[0]
+    const coverExt = coverImage.name.split('.').pop() || 'jpg'
+    const uniqueCoverName = `cover-${Date.now()}.${coverExt}`
+    formData.append('image', new File([coverImage], uniqueCoverName, { type: coverImage.type }))
+  }
+
+  input.images.forEach((image, index) => {
+    const ext = image.name.split('.').pop() || 'jpg'
+    const uniqueName = `image-${Date.now()}-${index + 1}.${ext}`
+    formData.append('images', new File([image], uniqueName, { type: image.type }))
+  })
+
   formData.append('imageCount', String(input.images.length))
   formData.append('brand', input.brand || 'No brand')
   formData.append('price', input.price)
