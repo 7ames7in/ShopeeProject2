@@ -160,7 +160,7 @@ function findSelectionTrigger(keywords: string[]): HTMLElement | null {
     const editRow = matchingLabel.closest('.edit-row')
     if (editRow) {
       const clickableElement = editRow.querySelector<HTMLElement>(
-        '.el-select, .el-cascader, .el-input__inner, [role="combobox"], .select-trigger'
+        '.el-select, .el-cascader, .el-input__inner, [role="combobox"], .select-trigger, .eds-selector, .eds-selector__inner'
       )
       if (clickableElement && isVisible(clickableElement)) {
         return clickableElement
@@ -180,7 +180,7 @@ function findSelectionTrigger(keywords: string[]): HTMLElement | null {
     let container: HTMLElement | null = label.parentElement
     for (let depth = 0; depth < 4 && container; depth += 1, container = container.parentElement) {
       const explicit = Array.from(container.querySelectorAll<HTMLElement>(
-        'input:not([type="hidden"]), button, [role="combobox"], [aria-haspopup="listbox"], [class*="select"]',
+        'input:not([type="hidden"]), button, [role="combobox"], [aria-haspopup="listbox"], [class*="select"], .eds-selector, .eds-selector__inner',
       )).filter((element) => element !== label && isVisible(element))
       const placeholder = explicit.find((element) => {
         const text = normalizeText((element as HTMLInputElement).placeholder ?? element.textContent)
@@ -201,8 +201,7 @@ function findVisibleOption(value: string): HTMLElement | null {
 }
 
 async function selectBrand(brand: string): Promise<FillFieldResult> {
-  // Brand가 없거나 'No Brand'인 경우 'No brand'로 통일하여 지정
-  const value = brand.trim() && brand.trim().toLowerCase() !== 'no brand' ? brand.trim() : 'No brand'
+  const value = brand.trim() || 'No Brand'
   const trigger = findSelectionTrigger(fieldKeywords.brand)
   if (!trigger) return { field: 'Brand', success: false, message: 'Brand 선택 영역을 찾지 못함' }
 
