@@ -272,68 +272,7 @@ function App() {
         reset()
       }
     }
-  }
-
-  async function handleRemoveDraftImage(url: string) {
-    if (!draft) return
-    const updatedUrls = draft.imageUrls.filter((item) => item !== url)
-    setDraft({
-      ...draft,
-      imageUrls: updatedUrls
-    })
-
-    try {
-      await updateDraft(draft.draftId, { imageUrls: updatedUrls })
-    } catch (e) {
-      console.error('Failed to save image deletion:', e)
-    }
-
-    setImages((current) => {
-      const targetIndex = current.findIndex((item) => item.url === url)
-      if (targetIndex !== -1) {
-        URL.revokeObjectURL(current[targetIndex].url)
-        return current.filter((_, idx) => idx !== targetIndex)
-      }
-      return current
-    })
-  }
-
-  async function handleCropImage(oldUrl: string, croppedDataUrl: string) {
-    if (!draft) return
-    setError('')
-    try {
-      const res = await fetch(croppedDataUrl)
-      const blob = await res.blob()
-      const file = new File([blob], `cropped-${Date.now()}.jpg`, { type: 'image/jpeg' })
-      const newUrl = URL.createObjectURL(file)
-
-      setImages((current) => {
-        const targetIndex = current.findIndex((item) => item.url === oldUrl)
-        if (targetIndex !== -1) {
-          URL.revokeObjectURL(current[targetIndex].url)
-          const updated = [...current]
-          updated[targetIndex] = { file, url: newUrl }
-          return updated
-        }
-        return current
-      })
-
-      const updatedUrls = draft.imageUrls.map((u) => u === oldUrl ? croppedDataUrl : u)
-      setDraft({
-        ...draft,
-        imageUrls: updatedUrls
-      })
-
-      try {
-        await updateDraft(draft.draftId, { imageUrls: updatedUrls })
-      } catch (e) {
-        console.error('Failed to update draft imageUrls after crop:', e)
-      }
-    } catch (e) {
-      console.error('Error handling cropped image:', e)
-      setError('이미지 편집 결과 저장 중 오류가 발생했습니다.')
-    }
-  }
+  }  // Image crops/removes are handled locally in ResultScreen and saved on save completion.
 
   async function handleUpdateDraft(updates: Partial<ProductDraft>) {
     if (!draft) return
@@ -517,9 +456,7 @@ function App() {
             onMarkUsed={markUsed}
             onReset={reset}
             onDelete={handleDeleteDraft}
-            onRemoveImage={handleRemoveDraftImage}
             onUpdate={handleUpdateDraft}
-            onCropImage={handleCropImage}
           />
         )}
 
@@ -595,19 +532,17 @@ type ResultProps = {
   onMarkUsed: () => void
   onReset: () => void
   onDelete: (id: string) => void
-  onRemoveImage: (url: string) => void
   onUpdate: (updates: Partial<ProductDraft>) => Promise<void>
-  onCropImage: (url: string, croppedDataUrl: string) => void
 }
 
-function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset, onDelete, onRemoveImage, onUpdate, onCropImage }: ResultProps) {
+function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset, onDelete, onUpdate }: ResultProps) {
   const { product } = draft
   const isUsed = draft.status.toUpperCase().includes('USED')
   const hasQualityIssue = draft.qualityWarnings.length > 0
-  const reviewImages = draft.imageUrls.length > 0 ? draft.imageUrls : localImageUrls
 
   const [isEditing, setIsEditing] = useState(false)
   const [editingImageUrl, setEditingImageUrl] = useState<string | null>(null)
+  const [editingImageUrls, setEditingImageUrls] = useState<string[]>([])
   const [editForm, setEditForm] = useState({
     productName: product.productName,
     category: product.category,
@@ -619,6 +554,7 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
     productDescription: product.productDescription,
   })
 
+  // Synchronize initial edit states when draft changes
   useEffect(() => {
     setEditForm({
       productName: product.productName,
@@ -630,41 +566,102 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
       daysToShip: String(product.daysToShip),
       productDescription: product.productDescription,
     })
-  }, [draft])
+    setEditingImageUrls(draft.imageUrls.length > 0 ? draft.imageUrls : localImageUrls)
+  }, [draft, localImageUrls])
+
+  const handleStartEdit = () => {
+    setEditForm({
+      productName: product.productName,
+      category: product.category,
+      brand: product.brand,
+      price: product.globalSkuPrice,
+      weight: String(product.weight),
+      stock: String(product.stock),
+      daysToShip: String(product.daysToShip),
+      productDescription: product.productDescription,
+    })
+    setEditingImageUrls(draft.imageUrls.length > 0 ? draft.imageUrls : localImageUrls)
+    setIsEditing(true)
+  }
+
+  const handleCancelEdit = () => {
+    setEditForm({
+      productName: product.productName,
+      category: product.category,
+      brand: product.brand,
+      price: product.globalSkuPrice,
+      weight: String(product.weight),
+      stock: String(product.stock),
+      daysToShip: String(product.daysToShip),
+      productDescription: product.productDescription,
+    })
+    setEditingImageUrls(draft.imageUrls.length > 0 ? draft.imageUrls : localImageUrls)
+    setIsEditing(false)
+  }
+
+  const handleSaveEdit = async () => {
+    const updates = {
+      imageUrls: editingImageUrls,
+      product: {
+        ...product,
+        productName: editForm.productName,
+        category: editForm.category,
+        brand: editForm.brand,
+        globalSkuPrice: editForm.price,
+        weight: Number(editForm.weight),
+        stock: Number(editForm.stock),
+        daysToShip: Number(editForm.daysToShip),
+        productDescription: editForm.productDescription,
+      }
+    }
+    await onUpdate(updates)
+    setIsEditing(false)
+  }
+
+  const handleRemoveLocalImage = (urlToRemove: string) => {
+    setEditingImageUrls((prev) => prev.filter((url) => url !== urlToRemove))
+  }
+
+  const handleCropLocalImage = (oldUrl: string, croppedDataUrl: string) => {
+    setEditingImageUrls((prev) => prev.map((url) => url === oldUrl ? croppedDataUrl : url))
+  }
+
+  const reviewImages = isEditing ? editingImageUrls : (draft.imageUrls.length > 0 ? draft.imageUrls : localImageUrls)
 
   return (
     <section className="screen result-screen">
       <div className="detail-header">
         <button className="back-button" onClick={onBack}><ArrowLeft size={18} /> Draft 목록</button>
         <div className="detail-header-actions">
-          <button
-            className={`detail-edit-button ${isEditing ? 'saving' : ''}`}
-            onClick={async () => {
-              if (isEditing) {
-                const updates = {
-                  product: {
-                    ...product,
-                    productName: editForm.productName,
-                    category: editForm.category,
-                    brand: editForm.brand,
-                    globalSkuPrice: editForm.price,
-                    weight: Number(editForm.weight),
-                    stock: Number(editForm.stock),
-                    daysToShip: Number(editForm.daysToShip),
-                    productDescription: editForm.productDescription,
-                  }
-                }
-                await onUpdate(updates)
-              }
-              setIsEditing(!isEditing)
-            }}
-          >
-            {isEditing ? '저장 완료' : '정보 수정'}
-          </button>
-          <button className="detail-delete-button" onClick={() => onDelete(draft.draftId)} aria-label="Draft 삭제">
-            <Trash2 size={16} />
-            삭제
-          </button>
+          {isEditing ? (
+            <>
+              <button
+                className="detail-cancel-button"
+                onClick={handleCancelEdit}
+              >
+                취소 / 복원
+              </button>
+              <button
+                className="detail-edit-button saving"
+                onClick={handleSaveEdit}
+              >
+                저장 완료
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="detail-edit-button"
+                onClick={handleStartEdit}
+              >
+                정보 수정
+              </button>
+              <button className="detail-delete-button" onClick={() => onDelete(draft.draftId)} aria-label="Draft 삭제">
+                <Trash2 size={16} />
+                삭제
+              </button>
+            </>
+          )}
         </div>
       </div>
       <div className="success-heading">
@@ -705,22 +702,26 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
             {reviewImages.map((url, index) => (
               <div key={url} className="result-image-item">
                 <img src={url} alt={`상품 이미지 ${index + 1}`} />
-                <button
-                  type="button"
-                  onClick={() => setEditingImageUrl(url)}
-                  aria-label={`이미지 ${index + 1} 자르기`}
-                  className="result-image-crop"
-                >
-                  <Crop size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onRemoveImage(url)}
-                  aria-label={`이미지 ${index + 1} 삭제`}
-                  className="result-image-delete"
-                >
-                  <X size={12} />
-                </button>
+                {isEditing && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setEditingImageUrl(url)}
+                      aria-label={`이미지 ${index + 1} 자르기`}
+                      className="result-image-crop"
+                    >
+                      <Crop size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLocalImage(url)}
+                      aria-label={`이미지 ${index + 1} 삭제`}
+                      className="result-image-delete"
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -861,7 +862,7 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
           url={editingImageUrl}
           onClose={() => setEditingImageUrl(null)}
           onSave={(croppedDataUrl) => {
-            onCropImage(editingImageUrl, croppedDataUrl)
+            handleCropLocalImage(editingImageUrl, croppedDataUrl)
             setEditingImageUrl(null)
           }}
         />
