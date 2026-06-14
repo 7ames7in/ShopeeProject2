@@ -953,17 +953,8 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
-  const [naturalDimensions, setNaturalDimensions] = useState<{ width: number; height: number } | null>(null)
 
   const imageRef = useRef<HTMLImageElement>(null)
-
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget
-    setNaturalDimensions({
-      width: img.naturalWidth,
-      height: img.naturalHeight,
-    })
-  }
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     setIsDragging(true)
@@ -1007,7 +998,11 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
   }
 
   const handleSave = () => {
-    if (!naturalDimensions || !imageRef.current) return
+    if (!imageRef.current) return
+
+    const W_display = imageRef.current.clientWidth
+    const H_display = imageRef.current.clientHeight
+    if (W_display === 0 || H_display === 0) return
 
     const canvas = document.createElement('canvas')
     const cropSize = 600
@@ -1021,6 +1016,7 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, cropSize, cropSize)
 
+    // Center coordinates
     ctx.translate(cropSize / 2, cropSize / 2)
 
     const viewportSize = 300
@@ -1030,10 +1026,8 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
     ctx.rotate((rotation * Math.PI) / 180)
     ctx.scale(zoom, zoom)
 
-    const { width: naturalWidth, height: naturalHeight } = naturalDimensions
-    const f_canvas = Math.min(cropSize / naturalWidth, cropSize / naturalHeight)
-    const W_canvas = naturalWidth * f_canvas
-    const H_canvas = naturalHeight * f_canvas
+    const W_canvas = W_display * scaleRatio
+    const H_canvas = H_display * scaleRatio
 
     try {
       ctx.drawImage(imageRef.current, -W_canvas / 2, -H_canvas / 2, W_canvas, H_canvas)
@@ -1069,9 +1063,9 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
                 <img
                   ref={imageRef}
                   src={url}
+                  crossOrigin="anonymous"
                   alt="Cropping workspace"
                   draggable={false}
-                  onLoad={handleImageLoad}
                   style={{
                     transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${zoom})`,
                     transformOrigin: 'center center',
@@ -1093,6 +1087,7 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
               <div className="crop-preview-viewport">
                 <img
                   src={url}
+                  crossOrigin="anonymous"
                   alt="Cropped Preview"
                   draggable={false}
                   style={{
