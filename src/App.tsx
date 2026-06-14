@@ -271,6 +271,26 @@ function App() {
     }
   }
 
+  function handleRemoveDraftImage(url: string) {
+    if (draft) {
+      setDraft((current) => {
+        if (!current) return null
+        return {
+          ...current,
+          imageUrls: current.imageUrls.filter((item) => item !== url)
+        }
+      })
+    }
+    setImages((current) => {
+      const targetIndex = current.findIndex((item) => item.url === url)
+      if (targetIndex !== -1) {
+        URL.revokeObjectURL(current[targetIndex].url)
+        return current.filter((_, idx) => idx !== targetIndex)
+      }
+      return current
+    })
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -436,6 +456,7 @@ function App() {
             onMarkUsed={markUsed}
             onReset={reset}
             onDelete={handleDeleteDraft}
+            onRemoveImage={handleRemoveDraftImage}
           />
         )}
 
@@ -499,9 +520,10 @@ type ResultProps = {
   onMarkUsed: () => void
   onReset: () => void
   onDelete: (id: string) => void
+  onRemoveImage: (url: string) => void
 }
 
-function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset, onDelete }: ResultProps) {
+function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBack, onCopy, onMarkUsed, onReset, onDelete, onRemoveImage }: ResultProps) {
   const { product } = draft
   const isUsed = draft.status.toUpperCase().includes('USED')
   const hasQualityIssue = draft.qualityWarnings.length > 0
@@ -550,7 +572,19 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
         </div>
         {reviewImages.length > 0 ? (
           <div className="result-image-grid">
-            {reviewImages.map((url, index) => <img key={url} src={url} alt={`상품 이미지 ${index + 1}`} />)}
+            {reviewImages.map((url, index) => (
+              <div key={url} className="result-image-item">
+                <img src={url} alt={`상품 이미지 ${index + 1}`} />
+                <button
+                  type="button"
+                  onClick={() => onRemoveImage(url)}
+                  aria-label={`이미지 ${index + 1} 삭제`}
+                  className="result-image-delete"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="missing-images"><ImagePlus size={24} /><span>서버에 저장된 이미지가 없습니다.</span></div>
