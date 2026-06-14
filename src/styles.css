@@ -621,6 +621,8 @@ h1, h2, p { margin: 0; }
 /* Main content with bottom padding for fixed bottom bar */
 .main-content {
   padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .screen {
