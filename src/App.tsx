@@ -304,7 +304,7 @@ function App() {
         </button>
       </header>
 
-      <main>
+      <main className="main-content">
         {screen === 'create' && (
           <section className="screen create-screen">
             <div className="hero">
@@ -472,6 +472,40 @@ function App() {
           />
         )}
       </main>
+
+      <nav className="bottombar">
+        <button 
+          className={`bottombar-item ${screen === 'create' ? 'active' : ''}`} 
+          onClick={() => { setScreen('create'); reset(); }}
+          title="새 Draft 작성"
+        >
+          <Plus size={22} />
+          <span>New Draft</span>
+        </button>
+        <button 
+          className={`bottombar-item ${screen === 'list' ? 'active' : ''}`} 
+          onClick={loadDrafts}
+          title="Draft 목록"
+        >
+          <FileText size={22} />
+          <span>List</span>
+        </button>
+        <button 
+          className={`bottombar-item ${screen === 'create' ? 'active' : ''}`} 
+          onClick={reset}
+          title="홈으로 이동"
+        >
+          <Package size={22} />
+          <span>Home</span>
+        </button>
+        <button 
+          className="bottombar-item"
+          title="더 보기"
+        >
+          <ChevronRight size={22} />
+          <span>More</span>
+        </button>
+      </nav>
     </div>
   )
 }

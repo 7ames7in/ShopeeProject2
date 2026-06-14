@@ -51,7 +51,7 @@ button:disabled { cursor: default; opacity: .65; }
 .brand strong { font-size: 15px; letter-spacing: -.2px; }
 .brand small { color: #9b928e; font-size: 10px; margin-top: 1px; }
 .icon-button { width: 40px; height: 40px; border: 1px solid var(--line); background: #fff; color: #615955; border-radius: 12px; display: grid; place-items: center; }
-.screen { width: 100%; min-width: 0; padding: 28px 20px calc(30px + env(safe-area-inset-bottom)); min-height: calc(100vh - 72px); }
+.screen { width: 100%; min-width: 0; padding: 28px 20px 28px; min-height: calc(100vh - 72px); }
 
 .hero { padding: 4px 2px 24px; }
 .eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--orange); font-weight: 700; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
@@ -616,4 +616,59 @@ h1, h2, p { margin: 0; }
 @keyframes slideUp {
   from { transform: translateY(30px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
+}
+
+/* Main content with bottom padding for fixed bottom bar */
+.main-content {
+  padding-bottom: calc(76px + env(safe-area-inset-bottom));
+}
+
+.screen {
+  padding-bottom: 28px;
+}
+
+/* Bottom Navigation Bar */
+.bottombar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 520px);
+  height: auto;
+  padding: 10px 0 max(10px, env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(14px);
+  z-index: 9;
+}
+
+.bottombar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: #9b928e;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: color 0.2s, transform 0.15s;
+  cursor: pointer;
+}
+
+.bottombar-item:active {
+  transform: scale(0.95);
+}
+
+.bottombar-item.active {
+  color: var(--orange);
+}
+
+.bottombar-item:hover:not(.active) {
+  color: #817975;
 }
