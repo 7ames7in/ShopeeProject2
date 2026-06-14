@@ -97,11 +97,15 @@ function normalizeDraft(value: unknown): ProductDraft {
   const productName = String(dataSource.productName ?? dataSource.product_name ?? '')
   const category = String(dataSource.categoryPath ?? dataSource.category_path ?? dataSource.category ?? '')
   const productDescription = String(dataSource.productDescription ?? dataSource.product_description ?? '')
+  
+  const isManual = dataSource.manualEdit === true || dataSource.isManual === true || dataSource.skipAi === true
   const qualityWarnings: string[] = []
-  if (!imageUrls.length) qualityWarnings.push('서버에 상품 이미지가 저장되지 않았습니다.')
-  if (!productName || /AI Generated Shopee Product Draft/i.test(productName)) qualityWarnings.push('실제 AI 상품명이 생성되지 않았습니다.')
-  if (!category || /Uncategorized/i.test(category)) qualityWarnings.push('카테고리가 분석되지 않았습니다.')
-  if (!productDescription || /placeholder/i.test(productDescription)) qualityWarnings.push('실제 AI 상품 설명이 생성되지 않았습니다.')
+  if (!isManual) {
+    if (!imageUrls.length) qualityWarnings.push('서버에 상품 이미지가 저장되지 않았습니다.')
+    if (!productName || /AI Generated Shopee Product Draft/i.test(productName)) qualityWarnings.push('실제 AI 상품명이 생성되지 않았습니다.')
+    if (!category || /Uncategorized/i.test(category)) qualityWarnings.push('카테고리가 분석되지 않았습니다.')
+    if (!productDescription || /placeholder/i.test(productDescription)) qualityWarnings.push('실제 AI 상품 설명이 생성되지 않았습니다.')
+  }
 
   const draft = {
     draftId,
@@ -110,6 +114,9 @@ function normalizeDraft(value: unknown): ProductDraft {
     usedAt: raw.usedAt ? String(raw.usedAt) : raw.used_at ? String(raw.used_at) : dataSource.usedAt ? String(dataSource.usedAt) : dataSource.used_at ? String(dataSource.used_at) : undefined,
     imageUrls,
     qualityWarnings,
+    manualEdit: isManual,
+    isManual: isManual,
+    skipAi: isManual,
     product: {
       productName,
       category,
@@ -251,7 +258,13 @@ export async function updateDraft(draftId: string, updates: Partial<ProductDraft
     const response = await fetch(`${BASE_URL}/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ draftId, ...currentMerged }),
+      body: JSON.stringify({
+        draftId,
+        skipAi: true,
+        isManual: true,
+        manualEdit: true,
+        ...currentMerged,
+      }),
     })
     const data = unwrap(await parseResponse(response))
     if (data) return normalizeDraft(data)

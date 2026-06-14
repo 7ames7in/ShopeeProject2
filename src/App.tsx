@@ -602,6 +602,7 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
   const handleSaveEdit = async () => {
     const updates = {
       imageUrls: editingImageUrls,
+      manualEdit: true,
       product: {
         ...product,
         productName: editForm.productName,

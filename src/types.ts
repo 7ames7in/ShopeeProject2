@@ -8,6 +8,9 @@ export type ProductDraft = {
   usedAt?: string
   imageUrls: string[]
   qualityWarnings: string[]
+  manualEdit?: boolean
+  isManual?: boolean
+  skipAi?: boolean
   product: {
     productName: string
     category: string
