@@ -47,5 +47,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>상품 사진 촬영을 위해 카메라 권한이 필요합니다.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>상품 사진을 선택하기 위해 앨범 권한이 필요합니다.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>편집된 상품 이미지를 저장하기 위해 앨범 추가 권한이 필요합니다.</string>
 </dict>
 </plist>
