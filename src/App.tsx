@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Check,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   Clipboard,
   Copy,
@@ -21,6 +22,8 @@ import {
   Trash2,
   Weight,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import { createDraft, deleteDraft, getDraft, listDrafts, markDraftUsed, updateDraft } from './api'
 import type { CreateDraftInput, Currency, ProductDraft, WeightUnit } from './types'
@@ -625,6 +628,7 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
   const hasQualityIssue = draft.qualityWarnings.length > 0
 
   const [isEditing, setIsEditing] = useState(false)
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [editingImageUrl, setEditingImageUrl] = useState<string | null>(null)
   const [editingImageUrls, setEditingImageUrls] = useState<string[]>([])
   const [editForm, setEditForm] = useState({
@@ -785,7 +789,11 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
         {reviewImages.length > 0 ? (
           <div className="result-image-grid">
             {reviewImages.map((url, index) => (
-              <div key={url} className="result-image-item">
+              <div
+                key={url}
+                className={`result-image-item ${!isEditing ? 'clickable' : ''}`}
+                onClick={!isEditing ? () => setViewerIndex(index) : undefined}
+              >
                 <img src={url} alt={`상품 이미지 ${index + 1}`} />
                 {isEditing && (
                   <>
@@ -950,6 +958,14 @@ function ResultScreen({ draft, copied, error, markingUsed, localImageUrls, onBac
             handleCropLocalImage(editingImageUrl, croppedDataUrl)
             setEditingImageUrl(null)
           }}
+        />
+      )}
+
+      {viewerIndex !== null && (
+        <ImageViewerModal
+          urls={reviewImages}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
         />
       )}
     </section>
@@ -1290,6 +1306,276 @@ function ImageCropModal({ url, onClose, onSave }: ImageCropModalProps) {
         <div className="crop-modal-footer">
           <button className="secondary-button" onClick={onClose}>취소</button>
           <button className="primary-button" onClick={handleSave} disabled={!naturalDimensions}>자르기 완료</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface ImageViewerModalProps {
+  urls: string[]
+  initialIndex: number
+  onClose: () => void
+}
+
+function ImageViewerModal({ urls, initialIndex, onClose }: ImageViewerModalProps) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex)
+  const [zoom, setZoom] = useState(1)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [rotation, setRotation] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+
+  const viewportRef = useRef<HTMLDivElement>(null)
+
+  const handlePrev = () => {
+    if (urls.length <= 1) return
+    setCurrentIndex((prev) => (prev - 1 + urls.length) % urls.length)
+    handleReset()
+  }
+
+  const handleNext = () => {
+    if (urls.length <= 1) return
+    setCurrentIndex((prev) => (prev + 1) % urls.length)
+    handleReset()
+  }
+
+  const handleZoomIn = () => {
+    setZoom((prev) => Math.min(3, prev + 0.2))
+  }
+
+  const handleZoomOut = () => {
+    setZoom((prev) => {
+      const nextZoom = Math.max(1, prev - 0.2)
+      if (nextZoom === 1) {
+        setOffset({ x: 0, y: 0 })
+      }
+      return nextZoom
+    })
+  }
+
+  const handleRotate = () => {
+    setRotation((prev) => (prev + 90) % 360)
+  }
+
+  const handleReset = () => {
+    setZoom(1)
+    setOffset({ x: 0, y: 0 })
+    setRotation(0)
+  }
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      } else if (e.key === 'ArrowLeft') {
+        handlePrev()
+      } else if (e.key === 'ArrowRight') {
+        handleNext()
+      } else if (e.key === '+' || e.key === '=') {
+        handleZoomIn()
+      } else if (e.key === '-') {
+        handleZoomOut()
+      } else if (e.key === 'r' || e.key === 'R') {
+        handleRotate()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [urls.length, onClose])
+
+  // Mouse wheel zoom
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      if (e.deltaY < 0) {
+        setZoom((prev) => Math.min(3, prev + 0.15))
+      } else {
+        setZoom((prev) => {
+          const nextZoom = Math.max(1, prev - 0.15)
+          if (nextZoom === 1) {
+            setOffset({ x: 0, y: 0 })
+          }
+          return nextZoom
+        })
+      }
+    }
+
+    viewport.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      viewport.removeEventListener('wheel', handleWheel)
+    }
+  }, [])
+
+  // Dragging/Panning
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (zoom <= 1) return
+    setIsDragging(true)
+    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging || zoom <= 1) return
+    setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (zoom <= 1 || e.touches.length !== 1) return
+    setIsDragging(true)
+    const touch = e.touches[0]
+    setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y })
+  }
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging || zoom <= 1 || e.touches.length !== 1) return
+    const touch = e.touches[0]
+    setOffset({ x: touch.clientX - dragStart.x, y: touch.clientY - dragStart.y })
+  }
+
+  const handleTouchEnd = () => {
+    setIsDragging(false)
+  }
+
+  const currentUrl = urls[currentIndex] || ''
+
+  return (
+    <div className="image-viewer-overlay" onClick={onClose}>
+      <div className="image-viewer-content" onClick={(e) => e.stopPropagation()}>
+        <div className="image-viewer-header">
+          <div className="image-viewer-title">
+            <Images size={16} />
+            <span>이미지 뷰어</span>
+          </div>
+          <button className="image-viewer-close-btn" onClick={onClose} aria-label="닫기">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div
+          className={`image-viewer-body ${zoom > 1 ? 'draggable' : ''}`}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {urls.length > 1 && (
+            <button
+              className="image-viewer-nav-btn prev"
+              onClick={(e) => {
+                e.stopPropagation()
+                handlePrev()
+              }}
+              aria-label="이전 이미지"
+            >
+              <ChevronLeft size={24} />
+            </button>
+          )}
+
+          <div className="image-viewer-viewport" ref={viewportRef}>
+            {currentUrl && (
+              <img
+                src={currentUrl}
+                alt={`확대 상품 이미지 ${currentIndex + 1}`}
+                className="image-viewer-img"
+                draggable={false}
+                style={{
+                  transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${zoom})`,
+                  transformOrigin: 'center center',
+                  transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+                }}
+              />
+            )}
+          </div>
+
+          {urls.length > 1 && (
+            <button
+              className="image-viewer-nav-btn next"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleNext()
+              }}
+              aria-label="다음 이미지"
+            >
+              <ChevronRight size={24} />
+            </button>
+          )}
+        </div>
+
+        <div className="image-viewer-controls">
+          <button
+            type="button"
+            className="image-viewer-ctrl-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleZoomOut()
+            }}
+            disabled={zoom <= 1}
+            title="Zoom Out (-)"
+          >
+            <ZoomOut size={14} />
+            축소
+          </button>
+
+          <span style={{ fontSize: '11px', fontFamily: 'monospace', margin: '0 4px', fontWeight: 'bold' }}>
+            {Math.round(zoom * 100)}%
+          </span>
+
+          <button
+            type="button"
+            className="image-viewer-ctrl-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleZoomIn()
+            }}
+            disabled={zoom >= 3}
+            title="Zoom In (+)"
+          >
+            <ZoomIn size={14} />
+            확대
+          </button>
+
+          <button
+            type="button"
+            className="image-viewer-ctrl-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleRotate()
+            }}
+            title="Rotate (R)"
+          >
+            <RotateCw size={14} />
+            회전
+          </button>
+
+          <button
+            type="button"
+            className="image-viewer-ctrl-btn reset"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleReset()
+            }}
+            title="Reset"
+          >
+            리셋
+          </button>
+        </div>
+
+        <div className="image-viewer-footer">
+          <span>이미지 {currentIndex + 1} / {urls.length}</span>
+          <span className="image-viewer-shortcut-hints">
+            [Esc] 닫기  [←/→] 이동  [+/-/휠] 확대/축소  [R] 회전
+          </span>
         </div>
       </div>
     </div>

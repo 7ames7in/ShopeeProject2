@@ -1799,3 +1799,211 @@ svg {
   padding-bottom: 350px !important; /* Force extra space at the bottom to allow scrolling up */
 }
 
+.result-image-item img { 
+  width: 100%; 
+  height: 100%; 
+  object-fit: cover; 
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.result-image-item.clickable {
+  cursor: zoom-in;
+}
+
+.result-image-item.clickable:hover img {
+  transform: scale(1.06);
+}
+
+/* Image Viewer Modal Styles */
+.image-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(45, 37, 34, 0.85);
+  backdrop-filter: blur(5px);
+  z-index: 2100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+.image-viewer-content {
+  width: min(100%, 640px);
+  height: min(90vh, 700px);
+  background: var(--bg-base);
+  border: 3px solid var(--ink);
+  border-radius: var(--radius-lg);
+  box-shadow: 4px 4px 0 var(--ink), 8px 8px 0 var(--bg-pressed);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  animation: slideUp 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+}
+
+.image-viewer-header {
+  padding: 14px 20px;
+  border-bottom: 2px solid var(--ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-inset);
+}
+
+.image-viewer-title {
+  margin: 0;
+  font-family: 'Silkscreen', monospace;
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.image-viewer-close-btn {
+  border: 2px solid var(--ink);
+  background: var(--bg-raised);
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.image-viewer-close-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+.image-viewer-body {
+  flex: 1;
+  position: relative;
+  background: #1b1614;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+}
+
+.image-viewer-body.draggable {
+  cursor: grab;
+}
+
+.image-viewer-body.draggable:active {
+  cursor: grabbing;
+}
+
+.image-viewer-viewport {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.image-viewer-img {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  border: 2px solid var(--ink);
+  background-color: #ffffff;
+}
+
+.image-viewer-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--ink);
+  background: var(--bg-raised);
+  color: var(--ink);
+  border-radius: var(--radius-xs);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--ink);
+  z-index: 10;
+  transition: transform 0.1s ease;
+}
+
+.image-viewer-nav-btn:active {
+  transform: translateY(-50%) translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.image-viewer-nav-btn.prev {
+  left: 16px;
+}
+
+.image-viewer-nav-btn.next {
+  right: 16px;
+}
+
+.image-viewer-controls {
+  padding: 12px 20px;
+  background: var(--bg-inset);
+  border-top: 2px solid var(--ink);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.image-viewer-ctrl-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 2px solid var(--ink);
+  background: var(--bg-raised);
+  color: var(--ink);
+  border-radius: var(--radius-xs);
+  font-family: 'Silkscreen', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
+}
+
+.image-viewer-ctrl-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.image-viewer-ctrl-btn.copper {
+  background: var(--copper);
+  color: #fff;
+}
+
+.image-viewer-footer {
+  padding: 8px 20px;
+  background: var(--ink);
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+}
+
+.image-viewer-shortcut-hints {
+  color: var(--bg-pressed);
+  font-size: 10px;
+}
