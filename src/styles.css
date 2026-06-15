@@ -1789,3 +1789,13 @@ svg {
   .bottombar { padding-left: 8px; padding-right: 8px; }
   .bottombar-item { font-size: 7px; height: 44px; }
 }
+
+/* Keyboard active styling adjustments */
+.app-shell.keyboard-open .bottombar {
+  display: none !important;
+}
+
+.app-shell.keyboard-open .main-content {
+  padding-bottom: 350px !important; /* Force extra space at the bottom to allow scrolling up */
+}
+

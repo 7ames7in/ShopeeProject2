@@ -119,6 +119,7 @@ function App() {
   const [markingUsed, setMarkingUsed] = useState(false)
   const [loadingStep, setLoadingStep] = useState(0)
   const [copied, setCopied] = useState('')
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -140,29 +141,39 @@ function App() {
     }
 
     let showListener: any = null
+    let willShowListener: any = null
+    let willHideListener: any = null
 
     if (Capacitor.isPluginAvailable('Keyboard')) {
       showListener = Keyboard.addListener('keyboardDidShow', handleKeyboardShow)
+      willShowListener = Keyboard.addListener('keyboardWillShow', () => setIsKeyboardOpen(true))
+      willHideListener = Keyboard.addListener('keyboardWillHide', () => setIsKeyboardOpen(false))
     } else {
       // Browser fallback
       const handleFocusIn = (e: FocusEvent) => {
         const target = e.target as HTMLElement
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+          setIsKeyboardOpen(true)
           setTimeout(() => {
             target.scrollIntoView({ behavior: 'smooth', block: 'center' })
           }, 250)
         }
       }
+      const handleFocusOut = () => {
+        setIsKeyboardOpen(false)
+      }
       document.addEventListener('focusin', handleFocusIn)
+      document.addEventListener('focusout', handleFocusOut)
       return () => {
         document.removeEventListener('focusin', handleFocusIn)
+        document.removeEventListener('focusout', handleFocusOut)
       }
     }
 
     return () => {
-      if (showListener) {
-        showListener.then((l: any) => l.remove())
-      }
+      if (showListener) showListener.then((l: any) => l.remove())
+      if (willShowListener) willShowListener.then((l: any) => l.remove())
+      if (willHideListener) willHideListener.then((l: any) => l.remove())
     }
   }, [])
 
@@ -325,7 +336,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isKeyboardOpen ? 'keyboard-open' : ''}`}>
       <header className="topbar">
         <button
           className="brand"
