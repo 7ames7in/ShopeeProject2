@@ -24,6 +24,8 @@ import {
 } from 'lucide-react'
 import { createDraft, deleteDraft, getDraft, listDrafts, markDraftUsed, updateDraft } from './api'
 import type { CreateDraftInput, Currency, ProductDraft, WeightUnit } from './types'
+import { Capacitor } from '@capacitor/core'
+import { Keyboard } from '@capacitor/keyboard'
 
 type Screen = 'create' | 'loading' | 'result' | 'list'
 
@@ -126,6 +128,43 @@ function App() {
     }, 2300)
     return () => window.clearInterval(timer)
   }, [screen])
+
+  useEffect(() => {
+    const handleKeyboardShow = () => {
+      const active = document.activeElement
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+        setTimeout(() => {
+          active.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 80)
+      }
+    }
+
+    let showListener: any = null
+
+    if (Capacitor.isPluginAvailable('Keyboard')) {
+      showListener = Keyboard.addListener('keyboardDidShow', handleKeyboardShow)
+    } else {
+      // Browser fallback
+      const handleFocusIn = (e: FocusEvent) => {
+        const target = e.target as HTMLElement
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+          setTimeout(() => {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }, 250)
+        }
+      }
+      document.addEventListener('focusin', handleFocusIn)
+      return () => {
+        document.removeEventListener('focusin', handleFocusIn)
+      }
+    }
+
+    return () => {
+      if (showListener) {
+        showListener.then((l: any) => l.remove())
+      }
+    }
+  }, [])
 
   function selectImages(event: ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.target.files ?? [])
